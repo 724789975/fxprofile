@@ -20,6 +20,7 @@ static void CALLBACK TimerRoutine(void* lpParam, BOOLEAN TimerOrWaitFired)
 
 void StartTimer()
 {
+#ifdef _WIN32
  	if (m_hTimerQueue == NULL && m_hTimerQueueTimer == NULL)
  	{
  		m_hTimerQueue = CreateTimerQueue();
@@ -40,6 +41,16 @@ void StartTimer()
  			m_hTimerQueueTimer = NULL;
  		}
  	}
+#else
+	struct itimerval timer;
+	static const int kMillion = 1000000;
+	int interval_usec = kMillion;
+	timer.it_interval.tv_sec = interval_usec / kMillion;
+	timer.it_interval.tv_usec = interval_usec % kMillion;
+	timer.it_value = timer.it_interval;
+	setitimer(SIGINT, &timer, 0);
+#endif // _WIN32
+
 }
 
 void OnSIg45(int n)
