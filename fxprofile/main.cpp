@@ -1,4 +1,8 @@
+#ifdef _WIN32
 #include <windows.h>
+#else
+#endif // _WIN32
+
 #include <signal.h>
 #include <iostream>
 
