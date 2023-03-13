@@ -11,7 +11,7 @@ static void StartThreadTimer(int dwTimerType, int dwSignalNumber, int dwFrequenc
 }
 
 
-
+#ifdef _WIN32
 HANDLE	m_hTimerQueue;
 HANDLE	m_hTimerQueueTimer;
  
@@ -21,6 +21,9 @@ static void CALLBACK TimerRoutine(void* lpParam, BOOLEAN TimerOrWaitFired)
 	//lpParam为传过来的参数
 	raise(SIGINT);
 }
+#endif // _WIN32
+
+
 
 void StartTimer()
 {
