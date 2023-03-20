@@ -132,7 +132,24 @@ static _Unwind_Reason_Code libgcc_backtrace_helper(struct _Unwind_Context* ctx,
 	return _URC_NO_REASON;
 }
 
-static int GET_STACK_TRACE_OR_FRAMES{
+//static int GET_STACK_TRACE_OR_FRAMES{
+//  libgcc_backtrace_data data;
+//  data.array = result;
+//  // we're also skipping current and parent's frame
+//  data.skip = skip_count + 2;
+//  data.pos = 0;
+//  data.limit = max_depth;
+//
+//  _Unwind_Backtrace(libgcc_backtrace_helper, &data);
+//
+//  if (data.pos > 1 && data.array[data.pos - 1] == NULL)
+//	--data.pos;
+//
+//  return data.pos;
+//}
+
+static int GetStackFramesWithContext_libgcc(void** result, int* sizes, int max_depth, \
+int skip_count, const void* ucp){
   libgcc_backtrace_data data;
   data.array = result;
   // we're also skipping current and parent's frame
@@ -158,7 +175,7 @@ void prof_handler(int sig, siginfo_t*, void* signal_ucontext,
 
 		stack[0] = GetPC(*reinterpret_cast<ucontext_t*>(signal_ucontext));
 
-		int depth = GetStackTraceWithContext(stack + 1, arraysize(stack) - 1,
+		int depth = GetStackFramesWithContext_libgcc(stack + 1, arraysize(stack) - 1,
 			3, signal_ucontext);
 
 		void** used_stack;
