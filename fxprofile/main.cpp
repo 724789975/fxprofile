@@ -1,3 +1,4 @@
+#include "include/profiler.h"
 #ifdef _WIN32
 #include <WinSock2.h>
 #include <windows.h>
@@ -154,7 +155,7 @@ HANDLE proc;
 struct TestThreadContext {
 	static void workert() {
 		for (int j = 0; j < 100000; ++j) {
-			if (j % 100 == 0);
+			//if (j % 100 == 0)
 				//std::cout << "thread " << GetCurrentThreadId() << " run" << std::endl;
 			Sleep(100);
 		}
@@ -295,6 +296,10 @@ int main2(int argc, char* argv[])
 	return 0;
 }
 
+int main()
+{
+	return 0;
+}
 
 
 
