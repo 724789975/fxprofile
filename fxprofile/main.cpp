@@ -1,8 +1,41 @@
 #include "include/profiler.h"
+#include <time.h>
+#include <chrono>
+#include <thread>
+
+
+int main()
+{
+	test();
+	for(;;)
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if 0
+
 #ifdef _WIN32
 #include <WinSock2.h>
 #include <windows.h>
-
 #include <Mmsystem.h>
 #pragma comment(lib, "Winmm.lib")
 
@@ -296,10 +329,6 @@ int main2(int argc, char* argv[])
 	return 0;
 }
 
-int main()
-{
-	return 0;
-}
-
+#endif
 
 
