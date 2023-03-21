@@ -65,6 +65,7 @@ struct CallUnrollInfo {
 	int return_sp_offset;
 };
 
+#if defined(__linux) && defined(__i386) && defined(__GNUC__)
 static const CallUnrollInfo callunrollinfo[] = {
 	// Entry to a function:  push %ebp;  mov  %esp,%ebp
 	// Top-of-stack contains the caller IP.
@@ -105,6 +106,16 @@ inline void* GetPC(const ucontext_t& signal_ucontext) {
 	}
 	return (void*)eip;
 }
+#else
+inline void* GetPC(const ucontext_t& signal_ucontext) {
+#if defined(__s390__) && !defined(__s390x__)
+	// Mask out the AMODE31 bit from the PC recorded in the context.
+	return (void*)((unsigned long)signal_ucontext.PC_FROM_UCONTEXT & 0x7fffffffUL);
+#else
+	return (void*)signal_ucontext.PC_FROM_UCONTEXT;   // defined in config.h
+#endif
+}
+#endif
 
 
 struct libgcc_backtrace_data {
