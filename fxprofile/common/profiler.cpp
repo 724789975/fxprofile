@@ -75,9 +75,9 @@ inline void *GetPC(const ucontext_t &signal_ucontext)
 inline void* GetPC(const ucontext_t& signal_ucontext) {
 #if defined(__s390__) && !defined(__s390x__)
 	// Mask out the AMODE31 bit from the PC recorded in the context.
-	return (void*)((unsigned long)signal_ucontext.PC_FROM_UCONTEXT & 0x7fffffffUL);
+	return (void*)((unsigned long)signal_ucontext.uc_mcontext.gregs[REG_RIP] & 0x7fffffffUL);
 #else
-	return (void*)signal_ucontext.PC_FROM_UCONTEXT;   // defined in config.h
+	return (void*)signal_ucontext.uc_mcontext.gregs[REG_RIP];   // defined in config.h
 #endif
 }
 #endif
