@@ -1,4 +1,5 @@
 #include "../include/profiler.h"
+#include "profiledata.h"
 
 #include <string.h>
 #ifdef _WIN32
@@ -11,6 +12,62 @@
 #endif // _WIN32
 
 static const int kMaxStackDepth = 254; // Max stack depth stored in profile
+
+#ifdef _WIN32
+typedef void (*ProfileHandlerCallback)();
+#else
+typedef void (*ProfileHandlerCallback)(int sig, siginfo_t* sig_info,
+                                       void* ucontext, void* callback_arg);
+#endif	//! _WIN32
+
+struct ProfileHandlerToken {
+  // Sets the callback and associated arg.
+  ProfileHandlerToken(ProfileHandlerCallback cb, void* cb_arg)
+      : callback(cb),
+        callback_arg(cb_arg) {
+  }
+
+  // Callback function to be invoked on receiving a profile timer interrupt.
+  ProfileHandlerCallback callback;
+  // Argument for the callback function.
+  void* callback_arg;
+};
+
+class CpuProfiler {
+ public:
+  CpuProfiler(){};
+  ~CpuProfiler(){};
+
+  bool Start(const char* fname){return false;};
+
+  void Stop(){};
+
+  // Write the data to disk (and continue profiling).
+  void FlushTable(){};
+
+  bool Enabled(){return false;};
+
+  void GetCurrentState(ProfilerState* state){};
+
+  static CpuProfiler instance_;
+
+//  private:
+  ProfileData   collector_;
+
+  int           (*filter_)(void*);
+  void*         filter_arg_;
+
+  ProfileHandlerToken* prof_handler_token_;
+
+  // Sets up a callback to receive SIGPROF interrupt.
+  void EnableHandler();
+
+  // Disables receiving SIGPROF interrupt.
+  void DisableHandler();
+};
+
+CpuProfiler CpuProfiler::instance_;
+
 
 #ifdef _WIN32
 
@@ -112,22 +169,6 @@ static _Unwind_Reason_Code libgcc_backtrace_helper(struct _Unwind_Context *ctx,
 	return _URC_NO_REASON;
 }
 
-// static int GET_STACK_TRACE_OR_FRAMES{
-//   libgcc_backtrace_data data;
-//   data.array = result;
-//   // we're also skipping current and parent's frame
-//   data.skip = skip_count + 2;
-//   data.pos = 0;
-//   data.limit = max_depth;
-//
-//   _Unwind_Backtrace(libgcc_backtrace_helper, &data);
-//
-//   if (data.pos > 1 && data.array[data.pos - 1] == NULL)
-//	--data.pos;
-//
-//   return data.pos;
-// }
-
 static int GetStackFramesWithContext_libgcc(void **result, int max_depth,
 											int skip_count, const void *uc)
 {
@@ -149,10 +190,9 @@ static int GetStackFramesWithContext_libgcc(void **result, int max_depth,
 bool prof_handler_called = false;
 
 void prof_handler(int sig, siginfo_t *info, void *signal_ucontext)
-// , void *cpu_profiler)
 {
 	prof_handler_called = true;
-	// CpuProfiler* instance = static_cast<CpuProfiler*>(cpu_profiler);
+	CpuProfiler* instance = &CpuProfiler::instance_;
 
 	// if (instance->filter_ == NULL ||
 	// 	(*instance->filter_)(instance->filter_arg_))
@@ -167,8 +207,6 @@ void prof_handler(int sig, siginfo_t *info, void *signal_ucontext)
 		void **used_stack;
 		if (depth > 0 && stack[1] == stack[0])
 		{
-			// in case of non-frame-pointer-based unwinding we will get
-			// duplicate of PC in stack[1], which we don't want
 			used_stack = stack + 1;
 		}
 		else
@@ -177,7 +215,7 @@ void prof_handler(int sig, siginfo_t *info, void *signal_ucontext)
 			depth++; // To account for pc value in stack[0];
 		}
 
-		// instance->collector_.Add(depth, used_stack);
+		instance->collector_.Add(depth, used_stack);
 	}
 }
 
