@@ -11,7 +11,7 @@
 #else
 #include <sys/time.h>
 #include <fcntl.h>
-#endif	//!_WIN32
+#endif //!_WIN32
 #include <string.h>
 
 // All of these are initialized in profiledata.h.
@@ -21,15 +21,18 @@ const int ProfileData::kBuckets;
 const int ProfileData::kBufferLength;
 
 ProfileData::Options::Options()
-	: frequency_(1) {
+	: frequency_(1)
+{
 }
 
 // This function is safe to call from asynchronous signals (but is not
 // re-entrant).  However, that's not part of its public interface.
-void ProfileData::Evict(const Entry& entry) {
+void ProfileData::Evict(const Entry &entry)
+{
 	const int d = entry.depth;
-	const int nslots = d + 2;     // Number of slots needed in eviction buffer
-	if (num_evicted_ + nslots > kBufferLength) {
+	const int nslots = d + 2; // Number of slots needed in eviction buffer
+	if (num_evicted_ + nslots > kBufferLength)
+	{
 		FlushEvicted();
 		assert(num_evicted_ == 0);
 		assert(nslots <= kBufferLength);
@@ -41,19 +44,21 @@ void ProfileData::Evict(const Entry& entry) {
 }
 
 ProfileData::ProfileData()
-	: hash_(0),
-	evict_(0),
-	num_evicted_(0),
-	out_(-1),
-	count_(0),
-	evictions_(0),
-	total_bytes_(0),
-	fname_(0),
-	start_time_(0) {
+	: hash_(0)
+	, evict_(0)
+	, num_evicted_(0)
+	, out_(-1)
+	, count_(0)
+	, evictions_(0)
+	, total_bytes_(0)
+	, fname_(0)
+	, start_time_(0)
+{
 }
 
-bool ProfileData::Start(const char* fname,
-	const ProfileData::Options& options) {
+bool ProfileData::Start(const char *fname,
+						const ProfileData::Options &options)
+{
 	//   if (enabled()) {
 	//     return false;
 	//   }
@@ -92,14 +97,19 @@ bool ProfileData::Start(const char* fname,
 	return true;
 }
 
-ProfileData::~ProfileData() {
+ProfileData::~ProfileData()
+{
 	Stop();
 }
 
 // Dump /proc/maps data to fd.  Copied from heap-profile-table.cc.
-#define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
+#define NO_INTR(fn) \
+	do              \
+	{               \
+	} while ((fn) < 0 && errno == EINTR)
 
-static void FDWrite(int fd, const char* buf, size_t len) {
+static void FDWrite(int fd, const char *buf, size_t len)
+{
 	//   while (len > 0) {
 	//     ssize_t r;
 	//     NO_INTR(r = write(fd, buf, len));
@@ -109,7 +119,8 @@ static void FDWrite(int fd, const char* buf, size_t len) {
 	//   }
 }
 
-static void DumpProcSelfMaps(int fd) {
+static void DumpProcSelfMaps(int fd)
+{
 	//   ProcMapsIterator::Buffer iterbuf;
 	//   ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
 
@@ -125,30 +136,36 @@ static void DumpProcSelfMaps(int fd) {
 	//   }
 }
 
-void ProfileData::Stop() {
-	if (!enabled()) {
+void ProfileData::Stop()
+{
+	if (!enabled())
+	{
 		return;
 	}
 
 	// Move data from hash table to eviction buffer
-	for (int b = 0; b < kBuckets; b++) {
-		Bucket* bucket = &hash_[b];
-		for (int a = 0; a < kAssociativity; a++) {
-			if (bucket->entry[a].count > 0) {
+	for (int b = 0; b < kBuckets; b++)
+	{
+		Bucket *bucket = &hash_[b];
+		for (int a = 0; a < kAssociativity; a++)
+		{
+			if (bucket->entry[a].count > 0)
+			{
 				Evict(bucket->entry[a]);
 			}
 		}
 	}
 
-	if (num_evicted_ + 3 > kBufferLength) {
+	if (num_evicted_ + 3 > kBufferLength)
+	{
 		// Ensure there is enough room for end of data marker
 		FlushEvicted();
 	}
 
 	// Write end of data marker
-	evict_[num_evicted_++] = 0;         // count
-	evict_[num_evicted_++] = 1;         // depth
-	evict_[num_evicted_++] = 0;         // end of data marker
+	evict_[num_evicted_++] = 0; // count
+	evict_[num_evicted_++] = 1; // depth
+	evict_[num_evicted_++] = 0; // end of data marker
 	FlushEvicted();
 
 	// Dump "/proc/self/maps" so we get list of mapped shared libraries
@@ -157,8 +174,10 @@ void ProfileData::Stop() {
 	Reset();
 }
 
-void ProfileData::Reset() {
-	if (!enabled()) {
+void ProfileData::Reset()
+{
+	if (!enabled())
+	{
 		return;
 	}
 
@@ -177,8 +196,10 @@ void ProfileData::Reset() {
 
 // This function is safe to call from asynchronous signals (but is not
 // re-entrant).  However, that's not part of its public interface.
-void ProfileData::GetCurrentState(State* state) const {
-	if (enabled()) {
+void ProfileData::GetCurrentState(State *state) const
+{
+	if (enabled())
+	{
 		state->enabled = true;
 		state->start_time = start_time_;
 		state->samples_gathered = count_;
@@ -186,7 +207,8 @@ void ProfileData::GetCurrentState(State* state) const {
 		strncpy(state->profile_name, fname_, buf_size);
 		state->profile_name[buf_size - 1] = '\0';
 	}
-	else {
+	else
+	{
 		state->enabled = false;
 		state->start_time = 0;
 		state->samples_gathered = 0;
@@ -196,16 +218,21 @@ void ProfileData::GetCurrentState(State* state) const {
 
 // This function is safe to call from asynchronous signals (but is not
 // re-entrant).  However, that's not part of its public interface.
-void ProfileData::FlushTable() {
-	if (!enabled()) {
+void ProfileData::FlushTable()
+{
+	if (!enabled())
+	{
 		return;
 	}
 
 	// Move data from hash table to eviction buffer
-	for (int b = 0; b < kBuckets; b++) {
-		Bucket* bucket = &hash_[b];
-		for (int a = 0; a < kAssociativity; a++) {
-			if (bucket->entry[a].count > 0) {
+	for (int b = 0; b < kBuckets; b++)
+	{
+		Bucket *bucket = &hash_[b];
+		for (int a = 0; a < kAssociativity; a++)
+		{
+			if (bucket->entry[a].count > 0)
+			{
 				Evict(bucket->entry[a]);
 				bucket->entry[a].depth = 0;
 				bucket->entry[a].count = 0;
@@ -217,71 +244,87 @@ void ProfileData::FlushTable() {
 	FlushEvicted();
 }
 
-void ProfileData::Add(int depth, const void* const* stack) {
-	 if (!enabled()) {
-	 	return;
-	 }
+void ProfileData::Add(int depth, const void *const *stack)
+{
+	if (!enabled())
+	{
+		return;
+	}
 
-	 if (depth > kMaxStackDepth) depth = kMaxStackDepth;
+	if (depth > kMaxStackDepth)
+		depth = kMaxStackDepth;
 
-	 // Make hash-value
-	 Slot h = 0;
-	 for (int i = 0; i < depth; i++) {
-	 	Slot slot = reinterpret_cast<Slot>(stack[i]);
-	 	h = (h << 8) | (h >> (8 * (sizeof(h) - 1)));
-	 	h += (slot * 31) + (slot * 7) + (slot * 3);
-	 }
+	// Make hash-value
+	Slot h = 0;
+	for (int i = 0; i < depth; i++)
+	{
+		Slot slot = reinterpret_cast<Slot>(stack[i]);
+		h = (h << 8) | (h >> (8 * (sizeof(h) - 1)));
+		h += (slot * 31) + (slot * 7) + (slot * 3);
+	}
 
-	 count_++;
+	count_++;
 
-	 // See if table already has an entry for this trace
-	 bool done = false;
-	 Bucket* bucket = &hash_[h % kBuckets];
-	 for (int a = 0; a < kAssociativity; a++) {
-	 	Entry* e = &bucket->entry[a];
-	 	if (e->depth == depth) {
-	 		bool match = true;
-	 		for (int i = 0; i < depth; i++) {
-	 			if (e->stack[i] != reinterpret_cast<Slot>(stack[i])) {
-	 				match = false;
-	 				break;
-	 			}
-	 		}
-	 		if (match) {
-	 			e->count++;
-	 			done = true;
-	 			break;
-	 		}
-	 	}
-	 }
+	// See if table already has an entry for this trace
+	bool done = false;
+	Bucket *bucket = &hash_[h % kBuckets];
+	for (int a = 0; a < kAssociativity; a++)
+	{
+		Entry *e = &bucket->entry[a];
+		if (e->depth == depth)
+		{
+			bool match = true;
+			for (int i = 0; i < depth; i++)
+			{
+				if (e->stack[i] != reinterpret_cast<Slot>(stack[i]))
+				{
+					match = false;
+					break;
+				}
+			}
+			if (match)
+			{
+				e->count++;
+				done = true;
+				break;
+			}
+		}
+	}
 
-	 if (!done) {
-	 	// Evict entry with smallest count
-	 	Entry* e = &bucket->entry[0];
-	 	for (int a = 1; a < kAssociativity; a++) {
-	 		if (bucket->entry[a].count < e->count) {
-	 			e = &bucket->entry[a];
-	 		}
-	 	}
-	 	if (e->count > 0) {
-	 		evictions_++;
-	 		Evict(*e);
-	 	}
+	if (!done)
+	{
+		// Evict entry with smallest count
+		Entry *e = &bucket->entry[0];
+		for (int a = 1; a < kAssociativity; a++)
+		{
+			if (bucket->entry[a].count < e->count)
+			{
+				e = &bucket->entry[a];
+			}
+		}
+		if (e->count > 0)
+		{
+			evictions_++;
+			Evict(*e);
+		}
 
-	 	// Use the newly evicted entry
-	 	e->depth = depth;
-	 	e->count = 1;
-	 	for (int i = 0; i < depth; i++) {
-	 		e->stack[i] = reinterpret_cast<Slot>(stack[i]);
-	 	}
-	 }
+		// Use the newly evicted entry
+		e->depth = depth;
+		e->count = 1;
+		for (int i = 0; i < depth; i++)
+		{
+			e->stack[i] = reinterpret_cast<Slot>(stack[i]);
+		}
+	}
 }
 
 // This function is safe to call from asynchronous signals (but is not
 // re-entrant).  However, that's not part of its public interface.
-void ProfileData::FlushEvicted() {
-	if (num_evicted_ > 0) {
-		const char* buf = reinterpret_cast<char*>(evict_);
+void ProfileData::FlushEvicted()
+{
+	if (num_evicted_ > 0)
+	{
+		const char *buf = reinterpret_cast<char *>(evict_);
 		size_t bytes = sizeof(evict_[0]) * num_evicted_;
 		total_bytes_ += bytes;
 		FDWrite(out_, buf, bytes);
