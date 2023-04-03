@@ -194,8 +194,6 @@ void prof_handler(int sig, siginfo_t *info, void *signal_ucontext)
 	prof_handler_called = true;
 	CpuProfiler* instance = &CpuProfiler::instance_;
 
-	// if (instance->filter_ == NULL ||
-	// 	(*instance->filter_)(instance->filter_arg_))
 	{
 		void *stack[kMaxStackDepth];
 

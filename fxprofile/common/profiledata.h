@@ -59,9 +59,9 @@ private:
 
 	// Hash-table/eviction-buffer entry (a.k.a. a sample)
 	struct Entry {
-		Slot count;                  // Number of hits
-		Slot depth;                  // Stack depth
-		Slot stack[kMaxStackDepth];  // Stack contents
+		int count;                  // Number of hits
+		int depth;                  // Stack depth
+		int stack[kMaxStackDepth];  // Stack contents
 	};
 
 	// Hash table bucket

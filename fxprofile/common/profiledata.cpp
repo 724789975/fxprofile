@@ -218,64 +218,63 @@ void ProfileData::FlushTable() {
 }
 
 void ProfileData::Add(int depth, const void* const* stack) {
-	// if (!enabled()) {
-	// 	return;
-	// }
+	 if (!enabled()) {
+	 	return;
+	 }
 
-	// if (depth > kMaxStackDepth) depth = kMaxStackDepth;
-	// RAW_CHECK(depth > 0, "ProfileData::Add depth <= 0");
+	 if (depth > kMaxStackDepth) depth = kMaxStackDepth;
 
-	// // Make hash-value
-	// Slot h = 0;
-	// for (int i = 0; i < depth; i++) {
-	// 	Slot slot = reinterpret_cast<Slot>(stack[i]);
-	// 	h = (h << 8) | (h >> (8 * (sizeof(h) - 1)));
-	// 	h += (slot * 31) + (slot * 7) + (slot * 3);
-	// }
+	 // Make hash-value
+	 Slot h = 0;
+	 for (int i = 0; i < depth; i++) {
+	 	Slot slot = reinterpret_cast<Slot>(stack[i]);
+	 	h = (h << 8) | (h >> (8 * (sizeof(h) - 1)));
+	 	h += (slot * 31) + (slot * 7) + (slot * 3);
+	 }
 
-	// count_++;
+	 count_++;
 
-	// // See if table already has an entry for this trace
-	// bool done = false;
-	// Bucket* bucket = &hash_[h % kBuckets];
-	// for (int a = 0; a < kAssociativity; a++) {
-	// 	Entry* e = &bucket->entry[a];
-	// 	if (e->depth == depth) {
-	// 		bool match = true;
-	// 		for (int i = 0; i < depth; i++) {
-	// 			if (e->stack[i] != reinterpret_cast<Slot>(stack[i])) {
-	// 				match = false;
-	// 				break;
-	// 			}
-	// 		}
-	// 		if (match) {
-	// 			e->count++;
-	// 			done = true;
-	// 			break;
-	// 		}
-	// 	}
-	// }
+	 // See if table already has an entry for this trace
+	 bool done = false;
+	 Bucket* bucket = &hash_[h % kBuckets];
+	 for (int a = 0; a < kAssociativity; a++) {
+	 	Entry* e = &bucket->entry[a];
+	 	if (e->depth == depth) {
+	 		bool match = true;
+	 		for (int i = 0; i < depth; i++) {
+	 			if (e->stack[i] != reinterpret_cast<Slot>(stack[i])) {
+	 				match = false;
+	 				break;
+	 			}
+	 		}
+	 		if (match) {
+	 			e->count++;
+	 			done = true;
+	 			break;
+	 		}
+	 	}
+	 }
 
-	// if (!done) {
-	// 	// Evict entry with smallest count
-	// 	Entry* e = &bucket->entry[0];
-	// 	for (int a = 1; a < kAssociativity; a++) {
-	// 		if (bucket->entry[a].count < e->count) {
-	// 			e = &bucket->entry[a];
-	// 		}
-	// 	}
-	// 	if (e->count > 0) {
-	// 		evictions_++;
-	// 		Evict(*e);
-	// 	}
+	 if (!done) {
+	 	// Evict entry with smallest count
+	 	Entry* e = &bucket->entry[0];
+	 	for (int a = 1; a < kAssociativity; a++) {
+	 		if (bucket->entry[a].count < e->count) {
+	 			e = &bucket->entry[a];
+	 		}
+	 	}
+	 	if (e->count > 0) {
+	 		evictions_++;
+	 		Evict(*e);
+	 	}
 
-	// 	// Use the newly evicted entry
-	// 	e->depth = depth;
-	// 	e->count = 1;
-	// 	for (int i = 0; i < depth; i++) {
-	// 		e->stack[i] = reinterpret_cast<Slot>(stack[i]);
-	// 	}
-	// }
+	 	// Use the newly evicted entry
+	 	e->depth = depth;
+	 	e->count = 1;
+	 	for (int i = 0; i < depth; i++) {
+	 		e->stack[i] = reinterpret_cast<Slot>(stack[i]);
+	 	}
+	 }
 }
 
 // This function is safe to call from asynchronous signals (but is not
