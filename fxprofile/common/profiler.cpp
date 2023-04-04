@@ -20,6 +20,13 @@ typedef void (*ProfileHandlerCallback)(int sig, siginfo_t* sig_info,
                                        void* ucontext, void* callback_arg);
 #endif	//! _WIN32
 
+struct ProfilerState {
+	int    enabled;             /* Is profiling currently enabled? */
+	time_t start_time;          /* If enabled, when was profiling started? */
+	char   profile_name[1024];  /* Name of profile file being written, or '\0' */
+	int    samples_gathered;    /* Number of samples gathered so far (or 0) */
+};
+
 struct ProfileHandlerToken {
   // Sets the callback and associated arg.
   ProfileHandlerToken(ProfileHandlerCallback cb, void* cb_arg)
@@ -38,7 +45,7 @@ class CpuProfiler {
   CpuProfiler(){};
   ~CpuProfiler(){};
 
-  bool Start(const char* fname){return false;};
+  bool Start(const char* fname, int frequency = 4000);
 
   void Stop(){};
 
@@ -258,3 +265,34 @@ void test()
 	// setitimer(2, &timer, 0);
 }
 #endif // _WIN32
+
+
+bool CpuProfiler::Start(const char* fname, int frequency /*= 4000*/)
+{
+	//SpinLockHolder cl(&lock_);
+
+	if (collector_.enabled()) {
+		return false;
+	}
+
+
+	ProfileData::Options collector_options;
+	collector_options.set_frequency(frequency);
+	if (!collector_.Start(fname, collector_options)) {
+		return false;
+	}
+
+	EnableHandler();
+
+	return true;
+}
+
+void CpuProfiler::EnableHandler()
+{
+}
+
+int ProfilerStart(const char* fname)
+{
+	CpuProfiler::instance_.Start(fname);
+}
+

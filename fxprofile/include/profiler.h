@@ -3,12 +3,21 @@
 
 #include <time.h>
 
-struct ProfilerState {
-  int    enabled;             /* Is profiling currently enabled? */
-  time_t start_time;          /* If enabled, when was profiling started? */
-  char   profile_name[1024];  /* Name of profile file being written, or '\0' */
-  int    samples_gathered;    /* Number of samples gathered so far (or 0) */
-};
+int ProfilerStart(const char* fname);
+
+//int ProfilerStartWithOptions(
+//    const char* fname, const struct ProfilerOptions* options);
+
+void ProfilerStop(void);
+
+void ProfilerFlush(void);
+
+void ProfilerEnable(void);
+void ProfilerDisable(void);
+
+//int ProfilingIsEnabledForAllThreads(void);
+
+//void ProfilerRegisterThread(void);
 
 void test();
 
