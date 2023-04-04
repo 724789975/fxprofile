@@ -4,6 +4,7 @@
 
 #include <time.h>   // for time_t
 #include <stdint.h>
+#include <stdio.h>
 
 class ProfileData {
 public:
@@ -72,10 +73,12 @@ private:
 	Bucket* hash_;          // hash table
 	Slot* evict_;         // evicted entries
 	int           num_evicted_;   // how many evicted entries?
-	int           out_;           // fd for output file.
+	FILE*           out_;           // fd for output file.
 	int           count_;         // How many samples recorded
 	int           evictions_;     // How many evictions
 	size_t        total_bytes_;   // How much output
+
+	//TODO ÐÞ¸ÄÃû×ÖÎª×Ö·û´®
 	char* fname_;         // Profile file name
 	time_t        start_time_;    // Start time, or 0
 

@@ -293,6 +293,6 @@ void CpuProfiler::EnableHandler()
 
 int ProfilerStart(const char* fname)
 {
-	CpuProfiler::instance_.Start(fname);
+	return CpuProfiler::instance_.Start(fname);
 }
 

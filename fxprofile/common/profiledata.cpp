@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <stddef.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -13,6 +14,10 @@
 #include <fcntl.h>
 #endif //!_WIN32
 #include <string.h>
+
+#ifdef _WIN32
+typedef intptr_t ssize_t;
+#endif
 
 // All of these are initialized in profiledata.h.
 const int ProfileData::kMaxStackDepth;
@@ -27,7 +32,7 @@ ProfileData::Options::Options()
 
 // This function is safe to call from asynchronous signals (but is not
 // re-entrant).  However, that's not part of its public interface.
-void ProfileData::Evict(const Entry &entry)
+void ProfileData::Evict(const Entry& entry)
 {
 	const int d = entry.depth;
 	const int nslots = d + 2; // Number of slots needed in eviction buffer
@@ -47,7 +52,7 @@ ProfileData::ProfileData()
 	: hash_(0)
 	, evict_(0)
 	, num_evicted_(0)
-	, out_(-1)
+	, out_(0)
 	, count_(0)
 	, evictions_(0)
 	, total_bytes_(0)
@@ -56,43 +61,43 @@ ProfileData::ProfileData()
 {
 }
 
-bool ProfileData::Start(const char *fname,
-						const ProfileData::Options &options)
+bool ProfileData::Start(const char* fname,
+	const ProfileData::Options& options)
 {
-	//   if (enabled()) {
-	//     return false;
-	//   }
+	if (enabled()) {
+		return false;
+	}
 
-	//   // Open output file and initialize various data structures
-	//   int fd = open(fname, O_CREAT | O_WRONLY | O_TRUNC, 0666);
-	//   if (fd < 0) {
-	//     // Can't open outfile for write
-	//     return false;
-	//   }
+	FILE* fd = fopen(fname, "w");
+	if (!fd) {
+		return false;
+	}
 
-	//   start_time_ = time(NULL);
-	//   fname_ = strdup(fname);
+	start_time_ = time(NULL);
+#ifdef _WIN32
+	fname_ = _strdup(fname);
+#else
+	fname_ = strdup(fname);
+#endif // _WIN32
 
-	//   // Reset counters
-	//   num_evicted_ = 0;
-	//   count_       = 0;
-	//   evictions_   = 0;
-	//   total_bytes_ = 0;
+	num_evicted_ = 0;
+	count_ = 0;
+	evictions_ = 0;
+	total_bytes_ = 0;
 
-	//   hash_ = new Bucket[kBuckets];
-	//   evict_ = new Slot[kBufferLength];
-	//   memset(hash_, 0, sizeof(hash_[0]) * kBuckets);
+	hash_ = new Bucket[kBuckets];
+	evict_ = new Slot[kBufferLength];
+	memset(hash_, 0, sizeof(hash_[0]) * kBuckets);
 
-	//   // Record special entries
-	//   evict_[num_evicted_++] = 0;                     // count for header
-	//   evict_[num_evicted_++] = 3;                     // depth for header
-	//   evict_[num_evicted_++] = 0;                     // Version number
-	//   CHECK_NE(0, options.frequency());
-	//   int period = 1000000 / options.frequency();
-	//   evict_[num_evicted_++] = period;                // Period (microseconds)
-	//   evict_[num_evicted_++] = 0;                     // Padding
+	// Record special entries
+	evict_[num_evicted_++] = 0;                     // count for header
+	evict_[num_evicted_++] = 3;                     // depth for header
+	evict_[num_evicted_++] = 0;                     // Version number
+	int period = 1000000 / options.frequency();
+	evict_[num_evicted_++] = period;                // Period (microseconds)
+	evict_[num_evicted_++] = 0;                     // Padding
 
-	//   out_ = fd;
+	out_ = fd;
 
 	return true;
 }
@@ -108,18 +113,17 @@ ProfileData::~ProfileData()
 	{               \
 	} while ((fn) < 0 && errno == EINTR)
 
-static void FDWrite(int fd, const char *buf, size_t len)
+static void FDWrite(FILE* fd, const char* buf, size_t len)
 {
-	//   while (len > 0) {
-	//     ssize_t r;
-	//     NO_INTR(r = write(fd, buf, len));
-	//     RAW_CHECK(r >= 0, "write failed");
-	//     buf += r;
-	//     len -= r;
-	//   }
+	while (len > 0) {
+		ssize_t r;
+		NO_INTR(r = fwrite(buf, 1, len, fd));
+		buf += r;
+		len -= r;
+	}
 }
 
-static void DumpProcSelfMaps(int fd)
+static void DumpProcSelfMaps(FILE* fd)
 {
 	//   ProcMapsIterator::Buffer iterbuf;
 	//   ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
@@ -146,7 +150,7 @@ void ProfileData::Stop()
 	// Move data from hash table to eviction buffer
 	for (int b = 0; b < kBuckets; b++)
 	{
-		Bucket *bucket = &hash_[b];
+		Bucket* bucket = &hash_[b];
 		for (int a = 0; a < kAssociativity; a++)
 		{
 			if (bucket->entry[a].count > 0)
@@ -196,7 +200,7 @@ void ProfileData::Reset()
 
 // This function is safe to call from asynchronous signals (but is not
 // re-entrant).  However, that's not part of its public interface.
-void ProfileData::GetCurrentState(State *state) const
+void ProfileData::GetCurrentState(State* state) const
 {
 	if (enabled())
 	{
@@ -228,7 +232,7 @@ void ProfileData::FlushTable()
 	// Move data from hash table to eviction buffer
 	for (int b = 0; b < kBuckets; b++)
 	{
-		Bucket *bucket = &hash_[b];
+		Bucket* bucket = &hash_[b];
 		for (int a = 0; a < kAssociativity; a++)
 		{
 			if (bucket->entry[a].count > 0)
@@ -244,7 +248,7 @@ void ProfileData::FlushTable()
 	FlushEvicted();
 }
 
-void ProfileData::Add(int depth, const void *const *stack)
+void ProfileData::Add(int depth, const void* const* stack)
 {
 	if (!enabled())
 	{
@@ -267,10 +271,10 @@ void ProfileData::Add(int depth, const void *const *stack)
 
 	// See if table already has an entry for this trace
 	bool done = false;
-	Bucket *bucket = &hash_[h % kBuckets];
+	Bucket* bucket = &hash_[h % kBuckets];
 	for (int a = 0; a < kAssociativity; a++)
 	{
-		Entry *e = &bucket->entry[a];
+		Entry* e = &bucket->entry[a];
 		if (e->depth == depth)
 		{
 			bool match = true;
@@ -294,7 +298,7 @@ void ProfileData::Add(int depth, const void *const *stack)
 	if (!done)
 	{
 		// Evict entry with smallest count
-		Entry *e = &bucket->entry[0];
+		Entry* e = &bucket->entry[0];
 		for (int a = 1; a < kAssociativity; a++)
 		{
 			if (bucket->entry[a].count < e->count)
@@ -324,7 +328,7 @@ void ProfileData::FlushEvicted()
 {
 	if (num_evicted_ > 0)
 	{
-		const char *buf = reinterpret_cast<char *>(evict_);
+		const char* buf = reinterpret_cast<char*>(evict_);
 		size_t bytes = sizeof(evict_[0]) * num_evicted_;
 		total_bytes_ += bytes;
 		FDWrite(out_, buf, bytes);
