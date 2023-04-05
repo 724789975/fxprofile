@@ -275,7 +275,6 @@ bool CpuProfiler::Start(const char* fname, int frequency /*= 4000*/)
 		return false;
 	}
 
-
 	ProfileData::Options collector_options;
 	collector_options.set_frequency(frequency);
 	if (!collector_.Start(fname, collector_options)) {

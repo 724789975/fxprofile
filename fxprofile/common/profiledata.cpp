@@ -185,17 +185,17 @@ void ProfileData::Reset()
 		return;
 	}
 
-	// close(out_);
-	// delete[] hash_;
-	// hash_ = 0;
-	// delete[] evict_;
-	// evict_ = 0;
-	// num_evicted_ = 0;
-	// free(fname_);
-	// fname_ = 0;
-	// start_time_ = 0;
+	fclose(out_);
+	delete[] hash_;
+	hash_ = 0;
+	delete[] evict_;
+	evict_ = 0;
+	num_evicted_ = 0;
+	free(fname_);
+	fname_ = 0;
+	start_time_ = 0;
 
-	// out_ = -1;
+	out_ = 0;
 }
 
 // This function is safe to call from asynchronous signals (but is not
@@ -322,8 +322,6 @@ void ProfileData::Add(int depth, const void* const* stack)
 	}
 }
 
-// This function is safe to call from asynchronous signals (but is not
-// re-entrant).  However, that's not part of its public interface.
 void ProfileData::FlushEvicted()
 {
 	if (num_evicted_ > 0)

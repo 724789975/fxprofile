@@ -46,7 +46,7 @@ public:
 
 	void FlushTable();
 
-	bool enabled() const { return out_ >= 0; }
+	bool enabled() const { return out_; }
 
 	void GetCurrentState(State* state) const;
 
