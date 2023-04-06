@@ -30,7 +30,8 @@ typedef long long		int64;
     #if (defined _CRT_DECLARE_NONSTDC_NAMES && _CRT_DECLARE_NONSTDC_NAMES) || (!defined _CRT_DECLARE_NONSTDC_NAMES && !__STDC__)
         typedef _dev_t dev_t;
     #endif
-#endif#ifndef _DEV_T_DEFINED
+#endif
+#ifndef _DEV_T_DEFINED
     #define _DEV_T_DEFINED
 
     typedef unsigned int _dev_t; // device code
@@ -132,6 +133,15 @@ class ProcMapsIterator {
 #endif  /* #ifndef SWIG */
 
 // Helper routines
+
+#ifdef _WIN32
+#include <windows.h>
+typedef HANDLE RawFD;
+const RawFD kIllegalRawFD = INVALID_HANDLE_VALUE;
+#else
+typedef int RawFD;
+const RawFD kIllegalRawFD = -1;   // what open returns if it fails
+#endif  // defined(_WIN32)
 
 namespace tcmalloc {
 int FillProcSelfMaps(char buf[], int size, bool* wrote_all);
