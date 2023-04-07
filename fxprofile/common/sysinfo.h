@@ -13,16 +13,17 @@
 #endif
 #include <stddef.h>    // for size_t
 #include <limits.h>    // for PATH_MAX
+#include <stdint.h>
 
 #ifndef HAVE_PID_T
 typedef int pid_t;
 #endif
 
-typedef unsigned char            uint8;
-typedef unsigned short           uint16;
-typedef unsigned int           uint32;
-typedef unsigned long long		uint64_t;
-typedef long long		int64;
+//typedef unsigned char            uint8;
+//typedef unsigned short           uint16;
+//typedef unsigned int           uint32;
+////typedef unsigned long long		uint64_t;
+//typedef long long		int64_t;
 
 #ifdef _WIN32
 typedef unsigned int _dev_t;
@@ -67,14 +68,14 @@ class ProcMapsIterator {
 
   static int FormatLine(char* buffer, int bufsize,
                         uint64_t start, uint64_t end, const char *flags,
-                        uint64_t offset, int64 inode, const char *filename,
+                        uint64_t offset, int64_t inode, const char *filename,
                         dev_t dev);
 
   bool Next(uint64_t *start, uint64_t *end, char **flags,
-            uint64_t *offset, int64 *inode, char **filename);
+            uint64_t *offset, int64_t *inode, char **filename);
 
   bool NextExt(uint64_t *start, uint64_t *end, char **flags,
-               uint64_t *offset, int64 *inode, char **filename,
+               uint64_t *offset, int64_t *inode, char **filename,
                uint64_t *file_mapping, uint64_t *file_pages,
                uint64_t *anon_mapping, uint64_t *anon_pages,
                dev_t *dev);

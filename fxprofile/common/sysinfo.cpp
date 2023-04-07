@@ -230,7 +230,7 @@ template<uint32_t kMagic, uint32_t kLCSegment,
 	static bool NextExtMachHelper(const mach_header* hdr,
 		int current_image, int current_load_cmd,
 		uint64_t* start, uint64_t* end, char** flags,
-		uint64_t* offset, int64* inode, char** filename,
+		uint64_t* offset, int64_t* inode, char** filename,
 		uint64_t* file_mapping, uint64_t* file_pages,
 		uint64_t* anon_mapping, uint64_t* anon_pages,
 		dev_t* dev) {
@@ -358,7 +358,7 @@ static bool StringToIntegerUntilCharWithCheck(
 
 static bool ParseProcMapsLine(char* text, uint64_t* start, uint64_t* end,
 	char* flags, uint64_t* offset,
-	int* major, int* minor, int64* inode,
+	int* major, int* minor, int64_t* inode,
 	unsigned* filename_offset) {
 #if defined(__linux__)
 	/*
@@ -501,7 +501,7 @@ bool ProcMapsIterator::Valid() const {
 }
 
 bool ProcMapsIterator::Next(uint64_t* start, uint64_t* end, char** flags,
-	uint64_t* offset, int64* inode, char** filename) {
+	uint64_t* offset, int64_t* inode, char** filename) {
 	return NextExt(start, end, flags, offset, inode, filename, NULL, NULL,
 		NULL, NULL, NULL);
 }
@@ -510,7 +510,7 @@ bool ProcMapsIterator::Next(uint64_t* start, uint64_t* end, char** flags,
 // a map object and returning it.  The problem is that this is called
 // when the memory allocator state is undefined, hence the arguments.
 bool ProcMapsIterator::NextExt(uint64_t* start, uint64_t* end, char** flags,
-	uint64_t* offset, int64* inode, char** filename,
+	uint64_t* offset, int64_t* inode, char** filename,
 	uint64_t* file_mapping, uint64_t* file_pages,
 	uint64_t* anon_mapping, uint64_t* anon_pages,
 	dev_t* dev) {
@@ -552,7 +552,7 @@ bool ProcMapsIterator::NextExt(uint64_t* start, uint64_t* end, char** flags,
 //		nextline_ += ((nextline_ < etext_) ? 1 : 0);  // skip nul if not end of text
 //		// stext_ now points at a nul-terminated line
 //		uint64_t tmpstart, tmpend, tmpoffset;
-//		int64 tmpinode;
+//		int64_t tmpinode;
 //		int major, minor;
 //		unsigned filename_offset = 0;
 //#if defined(__linux__)
@@ -763,7 +763,7 @@ bool ProcMapsIterator::NextExt(uint64_t* start, uint64_t* end, char** flags,
 
 int ProcMapsIterator::FormatLine(char* buffer, int bufsize,
 	uint64_t start, uint64_t end, const char* flags,
-	uint64_t offset, int64 inode,
+	uint64_t offset, int64_t inode,
 	const char* filename, dev_t dev) {
 	//// We assume 'flags' looks like 'rwxp' or 'rwx'.
 	//char r = (flags && flags[0] == 'r') ? 'r' : '-';
@@ -789,7 +789,7 @@ namespace tcmalloc {
 		ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
 
 		uint64_t start, end, offset;
-		int64 inode;
+		int64_t inode;
 		char* flags, * filename;
 		int bytes_written = 0;
 		*wrote_all = true;
@@ -815,7 +815,7 @@ namespace tcmalloc {
 		ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
 
 		uint64_t start, end, offset;
-		int64 inode;
+		int64_t inode;
 		char* flags, * filename;
 		ProcMapsIterator::Buffer linebuf;
 		while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
