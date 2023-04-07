@@ -6,7 +6,7 @@
 #include <windows.h>   // for DWORD
 #include <tlhelp32.h>  // for CreateToolhelp32Snapshot
 #else
-#include <sys/type.h>
+#include <sys/types.h>
 #endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>    // for pid_t
