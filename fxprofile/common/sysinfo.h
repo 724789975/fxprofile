@@ -2,9 +2,11 @@
 #define _SYSINFO_H_
 
 #include <time.h>
-#if (defined(_WIN32) || defined(__MINGW32__)) && (!defined(__CYGWIN__) && !defined(__CYGWIN32__))
+#ifdef _WIN32
 #include <windows.h>   // for DWORD
 #include <tlhelp32.h>  // for CreateToolhelp32Snapshot
+#else
+#include <sys/type.h>
 #endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>    // for pid_t
@@ -22,24 +24,10 @@ typedef unsigned int           uint32;
 typedef unsigned long long		uint64_t;
 typedef long long		int64;
 
-#ifndef _DEV_T_DEFINED
-    #define _DEV_T_DEFINED
-
-    typedef unsigned int _dev_t; // device code
-
-    #if (defined _CRT_DECLARE_NONSTDC_NAMES && _CRT_DECLARE_NONSTDC_NAMES) || (!defined _CRT_DECLARE_NONSTDC_NAMES && !__STDC__)
-        typedef _dev_t dev_t;
-    #endif
-#endif
-#ifndef _DEV_T_DEFINED
-    #define _DEV_T_DEFINED
-
-    typedef unsigned int _dev_t; // device code
-
-    #if (defined _CRT_DECLARE_NONSTDC_NAMES && _CRT_DECLARE_NONSTDC_NAMES) || (!defined _CRT_DECLARE_NONSTDC_NAMES && !__STDC__)
-        typedef _dev_t dev_t;
-    #endif
-#endif
+#ifdef _WIN32
+typedef unsigned int _dev_t;
+typedef _dev_t dev_t;
+#endif // _WIN32
 
 extern const char* GetenvBeforeMain(const char* name);
 
