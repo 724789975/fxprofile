@@ -19,7 +19,7 @@ typedef int pid_t;
 typedef unsigned char            uint8;
 typedef unsigned short           uint16;
 typedef unsigned int           uint32;
-typedef unsigned long long		uint64;
+typedef unsigned long long		uint64_t;
 typedef long long		int64;
 
 #ifndef _DEV_T_DEFINED
@@ -78,17 +78,17 @@ class ProcMapsIterator {
   const char *CurrentLine() const { return stext_; }
 
   static int FormatLine(char* buffer, int bufsize,
-                        uint64 start, uint64 end, const char *flags,
-                        uint64 offset, int64 inode, const char *filename,
+                        uint64_t start, uint64_t end, const char *flags,
+                        uint64_t offset, int64 inode, const char *filename,
                         dev_t dev);
 
-  bool Next(uint64 *start, uint64 *end, char **flags,
-            uint64 *offset, int64 *inode, char **filename);
+  bool Next(uint64_t *start, uint64_t *end, char **flags,
+            uint64_t *offset, int64 *inode, char **filename);
 
-  bool NextExt(uint64 *start, uint64 *end, char **flags,
-               uint64 *offset, int64 *inode, char **filename,
-               uint64 *file_mapping, uint64 *file_pages,
-               uint64 *anon_mapping, uint64 *anon_pages,
+  bool NextExt(uint64_t *start, uint64_t *end, char **flags,
+               uint64_t *offset, int64 *inode, char **filename,
+               uint64_t *file_mapping, uint64_t *file_pages,
+               uint64_t *anon_mapping, uint64_t *anon_pages,
                dev_t *dev);
 
   ~ProcMapsIterator();

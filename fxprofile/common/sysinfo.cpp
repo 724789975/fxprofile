@@ -29,6 +29,10 @@
 #include <tlhelp32.h>         // for Module32First()
 #endif
 
+#ifndef _WIN32
+#include<unistd.h>
+#endif // !_WIN32
+
 #ifdef PLATFORM_WINDOWS
 #ifdef MODULEENTRY32
 
@@ -208,9 +212,12 @@ int GetSystemCPUsCount()
 #if defined __linux__ || defined __FreeBSD__ || defined __sun__ || defined __CYGWIN__ || defined __CYGWIN32__
 static void ConstructFilename(const char* spec, pid_t pid,
 	char* buf, int buf_size) {
-	CHECK_LT(snprintf(buf, buf_size,
+	if (snprintf(buf, buf_size,
 		spec,
-		static_cast<int>(pid ? pid : getpid())), buf_size);
+		static_cast<int>(pid ? pid : getpid())) < buf_size)
+	{
+//TODO error
+	}
 }
 #endif
 
