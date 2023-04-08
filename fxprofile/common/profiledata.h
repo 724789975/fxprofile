@@ -2,7 +2,6 @@
 #ifndef BASE_PROFILEDATA_H_
 #define BASE_PROFILEDATA_H_
 
-#include <time.h>   // for time_t
 #include <stdint.h>
 #include <stdio.h>
 
@@ -10,7 +9,7 @@ class ProfileData {
 public:
 	struct State {
 		bool     enabled;             // Is profiling currently enabled?
-		time_t   start_time;          // If enabled, when was profiling started?
+		unsigned long long start_time;          // If enabled, when was profiling started?
 		char     profile_name[1024];  // Name of file being written, or '\0'
 		int      samples_gathered;    // Number of samples gathered to far (or 0)
 	};
@@ -36,7 +35,7 @@ public:
 	ProfileData();
 	~ProfileData();
 
-	bool Start(const char* fname, const Options& options);
+	bool Start(const char* fname, int frequency);
 
 	void Stop();
 
@@ -55,14 +54,11 @@ private:
 	static const int kBuckets = 1 << 10;          // For hashtable
 	static const int kBufferLength = 1 << 18;     // For eviction buffer
 
-	// Type of slots: each slot can be either a count, or a PC value
-	typedef uintptr_t Slot;
-
 	// Hash-table/eviction-buffer entry (a.k.a. a sample)
 	struct Entry {
 		int count;                  // Number of hits
 		int depth;                  // Stack depth
-		int stack[kMaxStackDepth];  // Stack contents
+		uintptr_t stack[kMaxStackDepth];  // Stack contents
 	};
 
 	// Hash table bucket
@@ -71,7 +67,7 @@ private:
 	};
 
 	Bucket* hash_;          // hash table
-	Slot* evict_;         // evicted entries
+	uintptr_t* evict_;         // evicted entries
 	int           num_evicted_;   // how many evicted entries?
 	FILE*           out_;           // fd for output file.
 	int           count_;         // How many samples recorded
@@ -80,7 +76,7 @@ private:
 
 	//TODO ÐÞ¸ÄÃû×ÖÎª×Ö·û´®
 	char* fname_;         // Profile file name
-	time_t        start_time_;    // Start time, or 0
+	unsigned long long        start_time_;    // Start time, or 0
 
 	// Move 'entry' to the eviction buffer.
 	void Evict(const Entry& entry);

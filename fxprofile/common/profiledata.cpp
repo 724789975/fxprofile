@@ -5,13 +5,12 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stddef.h>
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
+#include <time.h>
 #ifdef _WIN32
 #else
 #include <sys/time.h>
 #include <fcntl.h>
+#include <unistd.h>
 #endif //!_WIN32
 #include <string.h>
 
@@ -44,7 +43,7 @@ void ProfileData::Evict(const Entry& entry)
 	}
 	evict_[num_evicted_++] = entry.count;
 	evict_[num_evicted_++] = d;
-	memcpy(&evict_[num_evicted_], entry.stack, d * sizeof(Slot));
+	memcpy(&evict_[num_evicted_], entry.stack, d * sizeof(uintptr_t));
 	num_evicted_ += d;
 }
 
@@ -62,7 +61,7 @@ ProfileData::ProfileData()
 }
 
 bool ProfileData::Start(const char* fname,
-	const ProfileData::Options& options)
+	int frequency)
 {
 	if (enabled()) {
 		return false;
@@ -86,14 +85,14 @@ bool ProfileData::Start(const char* fname,
 	total_bytes_ = 0;
 
 	hash_ = new Bucket[kBuckets];
-	evict_ = new Slot[kBufferLength];
+	evict_ = new uintptr_t[kBufferLength];
 	memset(hash_, 0, sizeof(hash_[0]) * kBuckets);
 
 	// Record special entries
 	evict_[num_evicted_++] = 0;                     // count for header
 	evict_[num_evicted_++] = 3;                     // depth for header
 	evict_[num_evicted_++] = 0;                     // Version number
-	int period = 1000000 / options.frequency();
+	int period = 1000000 / frequency;
 	evict_[num_evicted_++] = period;                // Period (microseconds)
 	evict_[num_evicted_++] = 0;                     // Padding
 
@@ -185,17 +184,17 @@ void ProfileData::Reset()
 		return;
 	}
 
-	fclose(out_);
-	delete[] hash_;
-	hash_ = 0;
-	delete[] evict_;
-	evict_ = 0;
-	num_evicted_ = 0;
-	free(fname_);
-	fname_ = 0;
-	start_time_ = 0;
+	// close(out_);
+	// delete[] hash_;
+	// hash_ = 0;
+	// delete[] evict_;
+	// evict_ = 0;
+	// num_evicted_ = 0;
+	// free(fname_);
+	// fname_ = 0;
+	// start_time_ = 0;
 
-	out_ = 0;
+	// out_ = -1;
 }
 
 // This function is safe to call from asynchronous signals (but is not
@@ -259,10 +258,10 @@ void ProfileData::Add(int depth, const void* const* stack)
 		depth = kMaxStackDepth;
 
 	// Make hash-value
-	Slot h = 0;
+	uintptr_t h = 0;
 	for (int i = 0; i < depth; i++)
 	{
-		Slot slot = reinterpret_cast<Slot>(stack[i]);
+		uintptr_t slot = reinterpret_cast<uintptr_t>(stack[i]);
 		h = (h << 8) | (h >> (8 * (sizeof(h) - 1)));
 		h += (slot * 31) + (slot * 7) + (slot * 3);
 	}
@@ -280,7 +279,7 @@ void ProfileData::Add(int depth, const void* const* stack)
 			bool match = true;
 			for (int i = 0; i < depth; i++)
 			{
-				if (e->stack[i] != reinterpret_cast<Slot>(stack[i]))
+				if (e->stack[i] != reinterpret_cast<uintptr_t>(stack[i]))
 				{
 					match = false;
 					break;
@@ -317,11 +316,13 @@ void ProfileData::Add(int depth, const void* const* stack)
 		e->count = 1;
 		for (int i = 0; i < depth; i++)
 		{
-			e->stack[i] = reinterpret_cast<Slot>(stack[i]);
+			e->stack[i] = reinterpret_cast<uintptr_t>(stack[i]);
 		}
 	}
 }
 
+// This function is safe to call from asynchronous signals (but is not
+// re-entrant).  However, that's not part of its public interface.
 void ProfileData::FlushEvicted()
 {
 	if (num_evicted_ > 0)
