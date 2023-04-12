@@ -66,6 +66,8 @@ class CpuProfiler {
 
   ProfileHandlerToken* prof_handler_token_;
 
+  int frequency_;
+
   // Sets up a callback to receive SIGPROF interrupt.
   void EnableHandler();
 
@@ -228,21 +230,23 @@ void prof_handler(int sig, siginfo_t *info, void *signal_ucontext)
 #include <stdlib.h>
 void test()
 {
-	struct sigaction sa;
-	sa.sa_sigaction = prof_handler;
-	sa.sa_flags = SA_RESTART | SA_SIGINFO;
-	sigemptyset(&sa.sa_mask);
-	if (sigaction(SIGPROF, &sa, NULL) != 0)
-	{
-		perror("sigaction");
-		exit(1);
-	}
+	ProfilerStart("test");
 
-	struct itimerval timer;
-	timer.it_interval.tv_sec = 0;
-	timer.it_interval.tv_usec = 1000;
-	timer.it_value = timer.it_interval;
-	setitimer(ITIMER_PROF, &timer, 0);
+	//struct sigaction sa;
+	//sa.sa_sigaction = prof_handler;
+	//sa.sa_flags = SA_RESTART | SA_SIGINFO;
+	//sigemptyset(&sa.sa_mask);
+	//if (sigaction(SIGPROF, &sa, NULL) != 0)
+	//{
+	//	perror("sigaction");
+	//	exit(1);
+	//}
+
+	//struct itimerval timer;
+	//timer.it_interval.tv_sec = 0;
+	//timer.it_interval.tv_usec = 1000;
+	//timer.it_value = timer.it_interval;
+	//setitimer(ITIMER_PROF, &timer, 0);
 
 	int r = 0;
   for (int i = 0; !prof_handler_called; ++i) {
@@ -279,6 +283,8 @@ bool CpuProfiler::Start(const char* fname, int frequency /*= 4000*/)
 		return false;
 	}
 
+	this->frequency_ = frequency;
+
 	EnableHandler();
 
 	return true;
@@ -286,6 +292,27 @@ bool CpuProfiler::Start(const char* fname, int frequency /*= 4000*/)
 
 void CpuProfiler::EnableHandler()
 {
+#ifdef _WIN32
+#else
+	struct sigaction sa;
+	sa.sa_sigaction = prof_handler;
+	sa.sa_flags = SA_RESTART | SA_SIGINFO;
+	sigemptyset(&sa.sa_mask);
+	if (sigaction(SIGPROF, &sa, NULL) != 0)
+	{
+		perror("sigaction");
+		exit(1);
+	}
+
+	struct itimerval timer;
+	static const int kMillion = 1000000;
+	int interval_usec = kMillion / this->frequency_;
+	timer.it_interval.tv_sec = interval_usec / kMillion;
+	timer.it_interval.tv_usec = interval_usec % kMillion;
+	timer.it_value = timer.it_interval;
+	setitimer(ITIMER_PROF, &timer, 0);
+#endif // _WIN32
+
 }
 
 int ProfilerStart(const char* fname)

@@ -60,8 +60,7 @@ ProfileData::ProfileData()
 {
 }
 
-bool ProfileData::Start(const char* fname,
-	int frequency)
+bool ProfileData::Start(const char* fname, int frequency)
 {
 	if (enabled()) {
 		return false;
