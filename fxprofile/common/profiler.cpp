@@ -42,12 +42,12 @@ struct ProfileHandlerToken {
 
 class CpuProfiler {
  public:
-  CpuProfiler(){};
+  CpuProfiler();
   ~CpuProfiler(){};
 
   bool Start(const char* fname, int frequency = 4000);
 
-  void Stop(){};
+  void Stop();
 
   // Write the data to disk (and continue profiling).
   void FlushTable(){};
@@ -271,10 +271,24 @@ void test()
 #endif // _WIN32
 
 
+CpuProfiler::CpuProfiler()
+{
+#ifdef _WIN32
+#else
+	struct sigaction sa;
+	sa.sa_sigaction = prof_handler;
+	sa.sa_flags = SA_RESTART | SA_SIGINFO;
+	sigemptyset(&sa.sa_mask);
+	if (sigaction(SIGPROF, &sa, NULL) != 0)
+	{
+		perror("sigaction");
+		exit(1);
+	}
+#endif // _WIN32
+}
+
 bool CpuProfiler::Start(const char* fname, int frequency /*= 4000*/)
 {
-	//SpinLockHolder cl(&lock_);
-
 	if (collector_.enabled()) {
 		return false;
 	}
@@ -290,20 +304,21 @@ bool CpuProfiler::Start(const char* fname, int frequency /*= 4000*/)
 	return true;
 }
 
+void CpuProfiler::Stop()
+{
+	if (!collector_.enabled()) {
+		return;
+	}
+
+	DisableHandler();
+
+	collector_.Stop();
+}
+
 void CpuProfiler::EnableHandler()
 {
 #ifdef _WIN32
 #else
-	struct sigaction sa;
-	sa.sa_sigaction = prof_handler;
-	sa.sa_flags = SA_RESTART | SA_SIGINFO;
-	sigemptyset(&sa.sa_mask);
-	if (sigaction(SIGPROF, &sa, NULL) != 0)
-	{
-		perror("sigaction");
-		exit(1);
-	}
-
 	struct itimerval timer;
 	static const int kMillion = 1000000;
 	int interval_usec = kMillion / this->frequency_;
@@ -315,8 +330,27 @@ void CpuProfiler::EnableHandler()
 
 }
 
+void CpuProfiler::DisableHandler()
+{
+#ifdef _WIN32
+#else
+	struct itimerval timer;
+	timer.it_interval.tv_sec = 0;
+	timer.it_interval.tv_usec = 0;
+	timer.it_value = timer.it_interval;
+	setitimer(ITIMER_PROF, &timer, 0);
+#endif // _WIN32
+}
+
 int ProfilerStart(const char* fname)
 {
 	return CpuProfiler::instance_.Start(fname);
 }
+
+void ProfilerStop(void)
+{
+	CpuProfiler::instance_.Stop();
+}
+
+
 
