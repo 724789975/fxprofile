@@ -11,27 +11,13 @@
 #include <string.h>   // for memmove(), memchr(), etc.
 #include <fcntl.h>    // for open()
 #include <errno.h>    // for errno
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>   // for read()
-#endif
-#if defined __MACH__          // Mac OS X, almost certainly
-#include <mach-o/dyld.h>      // for iterating over dll's in ProcMapsIter
-#include <mach-o/loader.h>    // for iterating over dll's in ProcMapsIter
-#include <sys/types.h>
-#include <sys/sysctl.h>       // how we figure out numcpu's on OS X
-#elif defined __FreeBSD__
-#include <sys/sysctl.h>
-#elif defined __sun__         // Solaris
-#include <procfs.h>           // for, e.g., prmap_t
-#elif defined(PLATFORM_WINDOWS)
+#ifdef _WIN32
 #include <process.h>          // for getpid() (actually, _getpid())
 #include <shlwapi.h>          // for SHGetValueA()
 #include <tlhelp32.h>         // for Module32First()
-#endif
-
-#ifndef _WIN32
-#include<unistd.h>
-#endif // !_WIN32
+#else
+#include <unistd.h>   // for read()
+#endif // _WIN32
 
 #ifdef PLATFORM_WINDOWS
 #ifdef MODULEENTRY32
@@ -179,16 +165,16 @@ bool GetUniquePathFromEnv(const char* env_name, char* path) {
 }
 
 void SleepForMilliseconds(int milliseconds) {
-//#ifdef PLATFORM_WINDOWS
-//	_sleep(milliseconds);   // Windows's _sleep takes milliseconds argument
-//#else
-//	// Sleep for a few milliseconds
-//	struct timespec sleep_time;
-//	sleep_time.tv_sec = milliseconds / 1000;
-//	sleep_time.tv_nsec = (milliseconds % 1000) * 1000000;
-//	while (nanosleep(&sleep_time, &sleep_time) != 0 && errno == EINTR)
-//		;  // Ignore signals and wait for the full interval to elapse.
-//#endif
+	//#ifdef PLATFORM_WINDOWS
+	//	_sleep(milliseconds);   // Windows's _sleep takes milliseconds argument
+	//#else
+	//	// Sleep for a few milliseconds
+	//	struct timespec sleep_time;
+	//	sleep_time.tv_sec = milliseconds / 1000;
+	//	sleep_time.tv_nsec = (milliseconds % 1000) * 1000000;
+	//	while (nanosleep(&sleep_time, &sleep_time) != 0 && errno == EINTR)
+	//		;  // Ignore signals and wait for the full interval to elapse.
+	//#endif
 }
 
 int GetSystemCPUsCount()
@@ -209,59 +195,17 @@ int GetSystemCPUsCount()
 
 // ----------------------------------------------------------------------
 
-#if defined __linux__ || defined __FreeBSD__ || defined __sun__ || defined __CYGWIN__ || defined __CYGWIN32__
+#ifndef _WIN32
 static void ConstructFilename(const char* spec, pid_t pid,
 	char* buf, int buf_size) {
 	if (snprintf(buf, buf_size,
 		spec,
 		static_cast<int>(pid ? pid : getpid())) < buf_size)
 	{
-//TODO error
+		//TODO error
 	}
 }
-#endif
-
-// A templatized helper function instantiated for Mach (OS X) only.
-// It can handle finding info for both 32 bits and 64 bits.
-// Returns true if it successfully handled the hdr, false else.
-#ifdef __MACH__          // Mac OS X, almost certainly
-template<uint32_t kMagic, uint32_t kLCSegment,
-	typename MachHeader, typename SegmentCommand>
-	static bool NextExtMachHelper(const mach_header* hdr,
-		int current_image, int current_load_cmd,
-		uint64_t* start, uint64_t* end, char** flags,
-		uint64_t* offset, int64_t* inode, char** filename,
-		uint64_t* file_mapping, uint64_t* file_pages,
-		uint64_t* anon_mapping, uint64_t* anon_pages,
-		dev_t* dev) {
-	static char kDefaultPerms[5] = "r-xp";
-	if (hdr->magic != kMagic)
-		return false;
-	const char* lc = (const char*)hdr + sizeof(MachHeader);
-	// TODO(csilvers): make this not-quadradic (increment and hold state)
-	for (int j = 0; j < current_load_cmd; j++)  // advance to *our* load_cmd
-		lc += ((const load_command*)lc)->cmdsize;
-	if (((const load_command*)lc)->cmd == kLCSegment) {
-		const intptr_t dlloff = _dyld_get_image_vmaddr_slide(current_image);
-		const SegmentCommand* sc = (const SegmentCommand*)lc;
-		if (start) *start = sc->vmaddr + dlloff;
-		if (end) *end = sc->vmaddr + sc->vmsize + dlloff;
-		if (flags) *flags = kDefaultPerms;  // can we do better?
-		if (offset) *offset = sc->fileoff;
-		if (inode) *inode = 0;
-		if (filename)
-			*filename = const_cast<char*>(_dyld_get_image_name(current_image));
-		if (file_mapping) *file_mapping = 0;
-		if (file_pages) *file_pages = 0;   // could we use sc->filesize?
-		if (anon_mapping) *anon_mapping = 0;
-		if (anon_pages) *anon_pages = 0;
-		if (dev) *dev = 0;
-		return true;
-	}
-
-	return false;
-}
-#endif
+#endif // !_WIN32
 
 static bool ExtractUntilChar(char* text, int c, char** endptr) {
 	//CHECK_NE(text, NULL);
@@ -359,13 +303,11 @@ static bool StringToIntegerUntilCharWithCheck(
 static bool ParseProcMapsLine(char* text, uint64_t* start, uint64_t* end,
 	char* flags, uint64_t* offset,
 	int* major, int* minor, int64_t* inode,
-	unsigned* filename_offset) {
-#if defined(__linux__)
-	/*
-	 * It's similar to:
-	 * sscanf(text, "%"SCNx64"-%"SCNx64" %4s %"SCNx64" %x:%x %"SCNd64" %n",
-	 *        start, end, flags, offset, major, minor, inode, filename_offset)
-	 */
+	unsigned* filename_offset)
+{
+#ifdef _WIN32
+	return false;
+#else
 	char* endptr = text;
 	if (endptr == NULL || *endptr == '\0')  return false;
 
@@ -393,12 +335,11 @@ static bool ParseProcMapsLine(char* text, uint64_t* start, uint64_t* end,
 
 	*filename_offset = (endptr - text);
 	return true;
-#else
-	return false;
-#endif
+#endif // _WIN32
 }
 
-ProcMapsIterator::ProcMapsIterator(pid_t pid) {
+ProcMapsIterator::ProcMapsIterator(pid_t pid)
+{
 	Init(pid, NULL, false);
 }
 
@@ -411,8 +352,8 @@ ProcMapsIterator::ProcMapsIterator(pid_t pid, Buffer* buffer,
 	Init(pid, buffer, use_maps_backing);
 }
 
-void ProcMapsIterator::Init(pid_t pid, Buffer* buffer,
-	bool use_maps_backing) {
+void ProcMapsIterator::Init(pid_t pid, Buffer* buffer, bool use_maps_backing)
+{
 	pid_ = pid;
 	using_maps_backing_ = use_maps_backing;
 	dynamic_buffer_ = NULL;
@@ -432,61 +373,32 @@ void ProcMapsIterator::Init(pid_t pid, Buffer* buffer,
 	ebuf_ = ibuf_ + Buffer::kBufSize - 1;
 	nextline_ = ibuf_;
 
-#if defined(__linux__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
-	if (use_maps_backing) {  // don't bother with clever "self" stuff in this case
-		ConstructFilename("/proc/%d/maps_backing", pid, ibuf_, Buffer::kBufSize);
-	}
-	else if (pid == 0) {
-		// We have to kludge a bit to deal with the args ConstructFilename
-		// expects.  The 1 is never used -- it's only impt. that it's not 0.
-		ConstructFilename("/proc/self/maps", 1, ibuf_, Buffer::kBufSize);
-	}
-	else {
-		ConstructFilename("/proc/%d/maps", pid, ibuf_, Buffer::kBufSize);
-	}
-	// No error logging since this can be called from the crash dump
-	// handler at awkward moments. Users should call Valid() before
-	// using.
-	NO_INTR(fd_ = open(ibuf_, O_RDONLY));
-#elif defined(__FreeBSD__)
-	// We don't support maps_backing on freebsd
-	if (pid == 0) {
-		ConstructFilename("/proc/curproc/map", 1, ibuf_, Buffer::kBufSize);
-	}
-	else {
-		ConstructFilename("/proc/%d/map", pid, ibuf_, Buffer::kBufSize);
-	}
-	NO_INTR(fd_ = open(ibuf_, O_RDONLY));
-#elif defined(__sun__)
-	if (pid == 0) {
-		ConstructFilename("/proc/self/map", 1, ibuf_, Buffer::kBufSize);
-	}
-	else {
-		ConstructFilename("/proc/%d/map", pid, ibuf_, Buffer::kBufSize);
-	}
-	NO_INTR(fd_ = open(ibuf_, O_RDONLY));
-#elif defined(__MACH__)
-	current_image_ = _dyld_image_count();   // count down from the top
-	current_load_cmd_ = -1;
-#elif defined(PLATFORM_WINDOWS)
+#ifdef _WIN32
 	snapshot_ = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE |
 		TH32CS_SNAPMODULE32,
 		GetCurrentProcessId());
 	memset(&module_, 0, sizeof(module_));
 #else
-	fd_ = -1;   // so Valid() is always false
-#endif
-
+	if (use_maps_backing) {  // don't bother with clever "self" stuff in this case
+		ConstructFilename("/proc/%d/maps_backing", pid, ibuf_, Buffer::kBufSize);
+	}
+	else if (pid == 0) {
+		ConstructFilename("/proc/self/maps", 1, ibuf_, Buffer::kBufSize);
+	}
+	else {
+		ConstructFilename("/proc/%d/maps", pid, ibuf_, Buffer::kBufSize);
+	}
+	NO_INTR(fd_ = open(ibuf_, O_RDONLY));
+#endif // _WIN32
 }
 
-ProcMapsIterator::~ProcMapsIterator() {
-#if defined(PLATFORM_WINDOWS)
+ProcMapsIterator::~ProcMapsIterator()
+{
+#ifdef _WIN32
 	if (snapshot_ != INVALID_HANDLE_VALUE) CloseHandle(snapshot_);
-#elif defined(__MACH__)
-	// no cleanup necessary!
 #else
 	if (fd_ >= 0) NO_INTR(close(fd_));
-#endif
+#endif // _WIN32
 	delete dynamic_buffer_;
 }
 
@@ -506,258 +418,131 @@ bool ProcMapsIterator::Next(uint64_t* start, uint64_t* end, char** flags,
 		NULL, NULL, NULL);
 }
 
-// This has too many arguments.  It should really be building
-// a map object and returning it.  The problem is that this is called
-// when the memory allocator state is undefined, hence the arguments.
 bool ProcMapsIterator::NextExt(uint64_t* start, uint64_t* end, char** flags,
 	uint64_t* offset, int64_t* inode, char** filename,
 	uint64_t* file_mapping, uint64_t* file_pages,
 	uint64_t* anon_mapping, uint64_t* anon_pages,
-	dev_t* dev) {
+	dev_t* dev)
+{
+#ifdef _WIN32
+	static char kDefaultPerms[5] = "r-xp";
+	BOOL ok;
+	if (module_.dwSize == 0) {  // only possible before first call
+		module_.dwSize = sizeof(module_);
+		ok = Module32First(snapshot_, &module_);
+	}
+	else {
+		ok = Module32Next(snapshot_, &module_);
+	}
+	if (ok) {
+		uint64_t base_addr = reinterpret_cast<DWORD_PTR>(module_.modBaseAddr);
+		if (start) *start = base_addr;
+		if (end) *end = base_addr + module_.modBaseSize;
+		if (flags) *flags = kDefaultPerms;
+		if (offset) *offset = 0;
+		if (inode) *inode = 0;
+		if (filename) *filename = module_.szExePath;
+		if (file_mapping) *file_mapping = 0;
+		if (file_pages) *file_pages = 0;
+		if (anon_mapping) *anon_mapping = 0;
+		if (anon_pages) *anon_pages = 0;
+		if (dev) *dev = 0;
+		return true;
+	}
+#else
+	do {
+		// Advance to the start of the next line
+		stext_ = nextline_;
 
-//#if defined(__linux__) || defined(__FreeBSD__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
-//	do {
-//		// Advance to the start of the next line
-//		stext_ = nextline_;
-//
-//		// See if we have a complete line in the buffer already
-//		nextline_ = static_cast<char*>(memchr(stext_, '\n', etext_ - stext_));
-//		if (!nextline_) {
-//			// Shift/fill the buffer so we do have a line
-//			int count = etext_ - stext_;
-//
-//			// Move the current text to the start of the buffer
-//			memmove(ibuf_, stext_, count);
-//			stext_ = ibuf_;
-//			etext_ = ibuf_ + count;
-//
-//			int nread = 0;            // fill up buffer with text
-//			while (etext_ < ebuf_) {
-//				NO_INTR(nread = read(fd_, etext_, ebuf_ - etext_));
-//				if (nread > 0)
-//					etext_ += nread;
-//				else
-//					break;
-//			}
-//
-//			// Zero out remaining characters in buffer at EOF to avoid returning
-//			// garbage from subsequent calls.
-//			if (etext_ != ebuf_ && nread == 0) {
-//				memset(etext_, 0, ebuf_ - etext_);
-//			}
-//			*etext_ = '\n';   // sentinel; safe because ibuf extends 1 char beyond ebuf
-//			nextline_ = static_cast<char*>(memchr(stext_, '\n', etext_ + 1 - stext_));
-//		}
-//		*nextline_ = 0;                // turn newline into nul
-//		nextline_ += ((nextline_ < etext_) ? 1 : 0);  // skip nul if not end of text
-//		// stext_ now points at a nul-terminated line
-//		uint64_t tmpstart, tmpend, tmpoffset;
-//		int64_t tmpinode;
-//		int major, minor;
-//		unsigned filename_offset = 0;
-//#if defined(__linux__)
-//		// for now, assume all linuxes have the same format
-//		if (!ParseProcMapsLine(
-//			stext_,
-//			start ? start : &tmpstart,
-//			end ? end : &tmpend,
-//			flags_,
-//			offset ? offset : &tmpoffset,
-//			&major, &minor,
-//			inode ? inode : &tmpinode, &filename_offset)) continue;
-//#elif defined(__CYGWIN__) || defined(__CYGWIN32__)
-//		// cygwin is like linux, except the third field is the "entry point"
-//		// rather than the offset (see format_process_maps at
-//		// http://cygwin.com/cgi-bin/cvsweb.cgi/src/winsup/cygwin/fhandler_process.cc?rev=1.89&content-type=text/x-cvsweb-markup&cvsroot=src
-//		// Offset is always be 0 on cygwin: cygwin implements an mmap
-//		// by loading the whole file and then calling NtMapViewOfSection.
-//		// Cygwin also seems to set its flags kinda randomly; use windows default.
-//		char tmpflags[5];
-//		if (offset)
-//			*offset = 0;
-//		strcpy(flags_, "r-xp");
-//		if (sscanf(stext_, "%llx-%llx %4s %llx %x:%x %lld %n",
-//			start ? start : &tmpstart,
-//			end ? end : &tmpend,
-//			tmpflags,
-//			&tmpoffset,
-//			&major, &minor,
-//			inode ? inode : &tmpinode, &filename_offset) != 7) continue;
-//#elif defined(__FreeBSD__)
-//		// For the format, see http://www.freebsd.org/cgi/cvsweb.cgi/src/sys/fs/procfs/procfs_map.c?rev=1.31&content-type=text/x-cvsweb-markup
-//		tmpstart = tmpend = tmpoffset = 0;
-//		tmpinode = 0;
-//		major = minor = 0;   // can't get this info in freebsd
-//		if (inode)
-//			*inode = 0;        // nor this
-//		if (offset)
-//			*offset = 0;       // seems like this should be in there, but maybe not
-//		  // start end resident privateresident obj(?) prot refcnt shadowcnt
-//		  // flags copy_on_write needs_copy type filename:
-//		  // 0x8048000 0x804a000 2 0 0xc104ce70 r-x 1 0 0x0 COW NC vnode /bin/cat
-//		if (sscanf(stext_, "0x%" SCNx64 " 0x%" SCNx64 " %*d %*d %*p %3s %*d %*d 0x%*x %*s %*s %*s %n",
-//			start ? start : &tmpstart,
-//			end ? end : &tmpend,
-//			flags_,
-//			&filename_offset) != 3) continue;
-//#endif
-//
-//		// Depending on the Linux kernel being used, there may or may not be a space
-//		// after the inode if there is no filename.  sscanf will in such situations
-//		// nondeterministically either fill in filename_offset or not (the results
-//		// differ on multiple calls in the same run even with identical arguments).
-//		// We don't want to wander off somewhere beyond the end of the string.
-//		size_t stext_length = strlen(stext_);
-//		if (filename_offset == 0 || filename_offset > stext_length)
-//			filename_offset = stext_length;
-//
-//		// We found an entry
-//		if (flags) *flags = flags_;
-//		if (filename) *filename = stext_ + filename_offset;
-//		if (dev) *dev = minor | (major << 8);
-//
-//		if (using_maps_backing_) {
-//			// Extract and parse physical page backing info.
-//			char* backing_ptr = stext_ + filename_offset +
-//				strlen(stext_ + filename_offset);
-//
-//			// find the second '('
-//			int paren_count = 0;
-//			while (--backing_ptr > stext_) {
-//				if (*backing_ptr == '(') {
-//					++paren_count;
-//					if (paren_count >= 2) {
-//						uint64_t tmp_file_mapping;
-//						uint64_t tmp_file_pages;
-//						uint64_t tmp_anon_mapping;
-//						uint64_t tmp_anon_pages;
-//
-//						sscanf(backing_ptr + 1, "F %" SCNx64 " %" SCNd64 ") (A %" SCNx64 " %" SCNd64 ")",
-//							file_mapping ? file_mapping : &tmp_file_mapping,
-//							file_pages ? file_pages : &tmp_file_pages,
-//							anon_mapping ? anon_mapping : &tmp_anon_mapping,
-//							anon_pages ? anon_pages : &tmp_anon_pages);
-//						// null terminate the file name (there is a space
-//						// before the first (.
-//						backing_ptr[-1] = 0;
-//						break;
-//					}
-//				}
-//			}
-//		}
-//
-//		return true;
-//	} while (etext_ > ibuf_);
-//#elif defined(__sun__)
-//	// This is based on MA_READ == 4, MA_WRITE == 2, MA_EXEC == 1
-//	static char kPerms[8][4] = { "---", "--x", "-w-", "-wx",
-//								 "r--", "r-x", "rw-", "rwx" };
-//	COMPILE_ASSERT(MA_READ == 4, solaris_ma_read_must_equal_4);
-//	COMPILE_ASSERT(MA_WRITE == 2, solaris_ma_write_must_equal_2);
-//	COMPILE_ASSERT(MA_EXEC == 1, solaris_ma_exec_must_equal_1);
-//	Buffer object_path;
-//	int nread = 0;            // fill up buffer with text
-//	NO_INTR(nread = read(fd_, ibuf_, sizeof(prmap_t)));
-//	if (nread == sizeof(prmap_t)) {
-//		long inode_from_mapname = 0;
-//		prmap_t* mapinfo = reinterpret_cast<prmap_t*>(ibuf_);
-//		// Best-effort attempt to get the inode from the filename.  I think the
-//		// two middle ints are major and minor device numbers, but I'm not sure.
-//		sscanf(mapinfo->pr_mapname, "ufs.%*d.%*d.%ld", &inode_from_mapname);
-//
-//		if (pid_ == 0) {
-//			CHECK_LT(snprintf(object_path.buf_, Buffer::kBufSize,
-//				"/proc/self/path/%s", mapinfo->pr_mapname),
-//				Buffer::kBufSize);
-//		}
-//		else {
-//			CHECK_LT(snprintf(object_path.buf_, Buffer::kBufSize,
-//				"/proc/%d/path/%s",
-//				static_cast<int>(pid_), mapinfo->pr_mapname),
-//				Buffer::kBufSize);
-//		}
-//		ssize_t len = readlink(object_path.buf_, current_filename_, PATH_MAX);
-//		CHECK_LT(len, PATH_MAX);
-//		if (len < 0)
-//			len = 0;
-//		current_filename_[len] = '\0';
-//
-//		if (start) *start = mapinfo->pr_vaddr;
-//		if (end) *end = mapinfo->pr_vaddr + mapinfo->pr_size;
-//		if (flags) *flags = kPerms[mapinfo->pr_mflags & 7];
-//		if (offset) *offset = mapinfo->pr_offset;
-//		if (inode) *inode = inode_from_mapname;
-//		if (filename) *filename = current_filename_;
-//		if (file_mapping) *file_mapping = 0;
-//		if (file_pages) *file_pages = 0;
-//		if (anon_mapping) *anon_mapping = 0;
-//		if (anon_pages) *anon_pages = 0;
-//		if (dev) *dev = 0;
-//		return true;
-//	}
-//#elif defined(__MACH__)
-//	// We return a separate entry for each segment in the DLL. (TODO(csilvers):
-//	// can we do better?)  A DLL ("image") has load-commands, some of which
-//	// talk about segment boundaries.
-//	// cf image_for_address from http://svn.digium.com/view/asterisk/team/oej/minivoicemail/dlfcn.c?revision=53912
-//	for (; current_image_ >= 0; current_image_--) {
-//		const mach_header* hdr = _dyld_get_image_header(current_image_);
-//		if (!hdr) continue;
-//		if (current_load_cmd_ < 0)   // set up for this image
-//			current_load_cmd_ = hdr->ncmds;  // again, go from the top down
-//
-//		  // We start with the next load command (we've already looked at this one).
-//		for (current_load_cmd_--; current_load_cmd_ >= 0; current_load_cmd_--) {
-//#ifdef MH_MAGIC_64
-//			if (NextExtMachHelper<MH_MAGIC_64, LC_SEGMENT_64,
-//				struct mach_header_64, struct segment_command_64>(
-//					hdr, current_image_, current_load_cmd_,
-//					start, end, flags, offset, inode, filename,
-//					file_mapping, file_pages, anon_mapping,
-//					anon_pages, dev)) {
-//				return true;
-//			}
-//#endif
-//			if (NextExtMachHelper<MH_MAGIC, LC_SEGMENT,
-//				struct mach_header, struct segment_command>(
-//					hdr, current_image_, current_load_cmd_,
-//					start, end, flags, offset, inode, filename,
-//					file_mapping, file_pages, anon_mapping,
-//					anon_pages, dev)) {
-//				return true;
-//			}
-//		}
-//		// If we get here, no more load_cmd's in this image talk about
-//		// segments.  Go on to the next image.
-//	}
-//#elif defined(PLATFORM_WINDOWS)
-//	static char kDefaultPerms[5] = "r-xp";
-//	BOOL ok;
-//	if (module_.dwSize == 0) {  // only possible before first call
-//		module_.dwSize = sizeof(module_);
-//		ok = Module32First(snapshot_, &module_);
-//	}
-//	else {
-//		ok = Module32Next(snapshot_, &module_);
-//	}
-//	if (ok) {
-//		uint64_t base_addr = reinterpret_cast<DWORD_PTR>(module_.modBaseAddr);
-//		if (start) *start = base_addr;
-//		if (end) *end = base_addr + module_.modBaseSize;
-//		if (flags) *flags = kDefaultPerms;
-//		if (offset) *offset = 0;
-//		if (inode) *inode = 0;
-//		if (filename) *filename = module_.szExePath;
-//		if (file_mapping) *file_mapping = 0;
-//		if (file_pages) *file_pages = 0;
-//		if (anon_mapping) *anon_mapping = 0;
-//		if (anon_pages) *anon_pages = 0;
-//		if (dev) *dev = 0;
-//		return true;
-//	}
-//#endif
+		// See if we have a complete line in the buffer already
+		nextline_ = static_cast<char*>(memchr(stext_, '\n', etext_ - stext_));
+		if (!nextline_) {
+			// Shift/fill the buffer so we do have a line
+			int count = etext_ - stext_;
 
-	// We didn't find anything
+			// Move the current text to the start of the buffer
+			memmove(ibuf_, stext_, count);
+			stext_ = ibuf_;
+			etext_ = ibuf_ + count;
+
+			int nread = 0;            // fill up buffer with text
+			while (etext_ < ebuf_) {
+				NO_INTR(nread = read(fd_, etext_, ebuf_ - etext_));
+				if (nread > 0)
+					etext_ += nread;
+				else
+					break;
+			}
+
+			// Zero out remaining characters in buffer at EOF to avoid returning
+			// garbage from subsequent calls.
+			if (etext_ != ebuf_ && nread == 0) {
+				memset(etext_, 0, ebuf_ - etext_);
+			}
+			*etext_ = '\n';   // sentinel; safe because ibuf extends 1 char beyond ebuf
+			nextline_ = static_cast<char*>(memchr(stext_, '\n', etext_ + 1 - stext_));
+		}
+		*nextline_ = 0;                // turn newline into nul
+		nextline_ += ((nextline_ < etext_) ? 1 : 0);  // skip nul if not end of text
+		// stext_ now points at a nul-terminated line
+		uint64_t tmpstart, tmpend, tmpoffset;
+		int64_t tmpinode;
+		int major, minor;
+		unsigned filename_offset = 0;
+#if defined(__linux__)
+		// for now, assume all linuxes have the same format
+		if (!ParseProcMapsLine(
+			stext_,
+			start ? start : &tmpstart,
+			end ? end : &tmpend,
+			flags_,
+			offset ? offset : &tmpoffset,
+			&major, &minor,
+			inode ? inode : &tmpinode, &filename_offset)) continue;
+#endif
+		size_t stext_length = strlen(stext_);
+		if (filename_offset == 0 || filename_offset > stext_length)
+			filename_offset = stext_length;
+
+		// We found an entry
+		if (flags) *flags = flags_;
+		if (filename) *filename = stext_ + filename_offset;
+		if (dev) *dev = minor | (major << 8);
+
+		if (using_maps_backing_) {
+			// Extract and parse physical page backing info.
+			char* backing_ptr = stext_ + filename_offset +
+				strlen(stext_ + filename_offset);
+
+			// find the second '('
+			int paren_count = 0;
+			while (--backing_ptr > stext_) {
+				if (*backing_ptr == '(') {
+					++paren_count;
+					if (paren_count >= 2) {
+						uint64_t tmp_file_mapping;
+						uint64_t tmp_file_pages;
+						uint64_t tmp_anon_mapping;
+						uint64_t tmp_anon_pages;
+
+						sscanf(backing_ptr + 1, "F %" "llx" " %" "llx" ") (A %" "llx" " %" "llx" ")",
+							file_mapping ? file_mapping : &tmp_file_mapping,
+							file_pages ? file_pages : &tmp_file_pages,
+							anon_mapping ? anon_mapping : &tmp_anon_mapping,
+							anon_pages ? anon_pages : &tmp_anon_pages);
+						// null terminate the file name (there is a space
+						// before the first (.
+						backing_ptr[-1] = 0;
+						break;
+					}
+				}
+			}
+		}
+
+		return true;
+	} while (etext_ > ibuf_);
+#endif // _WIN32
+
 	return false;
 }
 
@@ -765,21 +550,20 @@ int ProcMapsIterator::FormatLine(char* buffer, int bufsize,
 	uint64_t start, uint64_t end, const char* flags,
 	uint64_t offset, int64_t inode,
 	const char* filename, dev_t dev) {
-	//// We assume 'flags' looks like 'rwxp' or 'rwx'.
-	//char r = (flags && flags[0] == 'r') ? 'r' : '-';
-	//char w = (flags && flags[0] && flags[1] == 'w') ? 'w' : '-';
-	//char x = (flags && flags[0] && flags[1] && flags[2] == 'x') ? 'x' : '-';
-	//// p always seems set on linux, so we set the default to 'p', not '-'
-	//char p = (flags && flags[0] && flags[1] && flags[2] && flags[3] != 'p')
-	//	? '-' : 'p';
+	// We assume 'flags' looks like 'rwxp' or 'rwx'.
+	char r = (flags && flags[0] == 'r') ? 'r' : '-';
+	char w = (flags && flags[0] && flags[1] == 'w') ? 'w' : '-';
+	char x = (flags && flags[0] && flags[1] && flags[2] == 'x') ? 'x' : '-';
+	// p always seems set on linux, so we set the default to 'p', not '-'
+	char p = (flags && flags[0] && flags[1] && flags[2] && flags[3] != 'p')
+		? '-' : 'p';
 
-	//const int rc = snprintf(buffer, bufsize,
-	//	"%08" PRIx64 "-%08" PRIx64 " %c%c%c%c %08" PRIx64 " %02x:%02x %-11" PRId64 " %s\n",
-	//	start, end, r, w, x, p, offset,
-	//	static_cast<int>(dev / 256), static_cast<int>(dev % 256),
-	//	inode, filename);
-	//return (rc < 0 || rc >= bufsize) ? 0 : rc;
-	return 0;
+	const int rc = snprintf(buffer, bufsize,
+		"%08" "llx" "-%08" "llx" " %c%c%c%c %08" "llx" " %02x:%02x %-11" "llx" " %s\n",
+		start, end, r, w, x, p, offset,
+		static_cast<int>(dev / 256), static_cast<int>(dev % 256),
+		inode, filename);
+	return (rc < 0 || rc >= bufsize) ? 0 : rc;
 }
 
 namespace tcmalloc {
