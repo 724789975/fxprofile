@@ -19,6 +19,5 @@ void ProfilerDisable(void);
 
 //void ProfilerRegisterThread(void);
 
-void test();
 
 #endif	//!__PROFILER_H__

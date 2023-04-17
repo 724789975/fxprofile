@@ -7,8 +7,6 @@
 #include <tlhelp32.h>  // for CreateToolhelp32Snapshot
 #else
 #include <sys/types.h>
-#endif
-#ifdef HAVE_UNISTD_H
 #include <unistd.h>    // for pid_t
 #endif
 #include <stddef.h>    // for size_t
@@ -18,12 +16,6 @@
 #ifndef HAVE_PID_T
 typedef int pid_t;
 #endif
-
-//typedef unsigned char            uint8;
-//typedef unsigned short           uint16;
-//typedef unsigned int           uint32;
-////typedef unsigned long long		uint64_t;
-//typedef long long		int64_t;
 
 #ifdef _WIN32
 typedef unsigned int _dev_t;
@@ -45,13 +37,7 @@ bool HasPosixThreads();
 class ProcMapsIterator {
 public:
 	struct Buffer {
-#ifdef __FreeBSD__
-		// FreeBSD requires us to read all of the maps file at once, so
-		// we have to make a buffer that's "always" big enough
-		static const size_t kBufSize = 102400;
-#else   // a one-line buffer is good enough
 		static const size_t kBufSize = 256 + 1024;
-#endif
 		char buf_[kBufSize];
 	};
 
@@ -115,17 +101,11 @@ private:
 // Helper routines
 
 #ifdef _WIN32
-#include <windows.h>
 typedef HANDLE RawFD;
 const RawFD kIllegalRawFD = INVALID_HANDLE_VALUE;
 #else
 typedef int RawFD;
 const RawFD kIllegalRawFD = -1;   // what open returns if it fails
 #endif  // defined(_WIN32)
-
-namespace tcmalloc {
-	int FillProcSelfMaps(char buf[], int size, bool* wrote_all);
-	void DumpProcSelfMaps(RawFD fd);
-}
 
 #endif   /* #ifndef _SYSINFO_H_ */

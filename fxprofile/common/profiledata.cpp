@@ -124,23 +124,19 @@ static void FDWrite(FILE* fd, const char* buf, size_t len)
 
 static void DumpProcSelfMaps(FILE* fd)
 {
-#ifdef _WIN32
-#else
-#endif // _WIN32
+	ProcMapsIterator::Buffer iterbuf;
+	ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
 
-	   ProcMapsIterator::Buffer iterbuf;
-	   ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
-
-	   uint64_t start, end, offset;
-	   int64_t inode;
-	   char *flags, *filename;
-	   ProcMapsIterator::Buffer linebuf;
-	   while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
-	     int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_),
-	                                 start, end, flags, offset, inode, filename,
-	                                 0);
-	     FDWrite(fd, linebuf.buf_, written);
-	   }
+	uint64_t start, end, offset;
+	int64_t inode;
+	char* flags, * filename;
+	ProcMapsIterator::Buffer linebuf;
+	while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
+		int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_),
+			start, end, flags, offset, inode, filename,
+			0);
+		FDWrite(fd, linebuf.buf_, written);
+	}
 }
 
 void ProfileData::Stop()
@@ -188,17 +184,17 @@ void ProfileData::Reset()
 		return;
 	}
 
-	 fclose(out_);
-	 delete[] hash_;
-	 hash_ = 0;
-	 delete[] evict_;
-	 evict_ = 0;
-	 num_evicted_ = 0;
-	 free(fname_);
-	 fname_ = 0;
-	 start_time_ = 0;
+	fclose(out_);
+	delete[] hash_;
+	hash_ = 0;
+	delete[] evict_;
+	evict_ = 0;
+	num_evicted_ = 0;
+	free(fname_);
+	fname_ = 0;
+	start_time_ = 0;
 
-	 out_ = 0;
+	out_ = 0;
 }
 
 void ProfileData::GetCurrentState(State* state) const

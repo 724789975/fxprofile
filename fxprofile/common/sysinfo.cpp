@@ -19,7 +19,7 @@
 #include <unistd.h>   // for read()
 #endif // _WIN32
 
-#ifdef PLATFORM_WINDOWS
+#ifdef _WIN32
 #ifdef MODULEENTRY32
 
 #undef MODULEENTRY32
@@ -32,7 +32,7 @@
 #ifndef TH32CS_SNAPMODULE32
 #define TH32CS_SNAPMODULE32  0
 #endif  /* TH32CS_SNAPMODULE32 */
-#endif  /* PLATFORM_WINDOWS */
+#endif // _WIN32
 
 // Re-run fn until it doesn't cause EINTR.
 #define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
@@ -179,7 +179,7 @@ void SleepForMilliseconds(int milliseconds) {
 
 int GetSystemCPUsCount()
 {
-#if defined(PLATFORM_WINDOWS)
+#ifdef _WIN32
 	// Get the number of processors.
 	SYSTEM_INFO info;
 	GetSystemInfo(&info);
@@ -190,7 +190,7 @@ int GetSystemCPUsCount()
 		return 1;
 	}
 	return static_cast<int>(rv);
-#endif
+#endif // _WIN32
 }
 
 // ----------------------------------------------------------------------
@@ -222,8 +222,6 @@ static bool ExtractUntilChar(char* text, int c, char** endptr) {
 	return true;
 }
 
-// Increments |*text_pointer| while it points a whitespace character.
-// It is to follow sscanf's whilespace handling.
 static void SkipWhileWhitespace(char** text_pointer, int c) {
 	if (isspace(c)) {
 		while (isspace(**text_pointer) && isspace(*((*text_pointer) + 1))) {
@@ -358,9 +356,6 @@ void ProcMapsIterator::Init(pid_t pid, Buffer* buffer, bool use_maps_backing)
 	using_maps_backing_ = use_maps_backing;
 	dynamic_buffer_ = NULL;
 	if (!buffer) {
-		// If the user didn't pass in any buffer storage, allocate it
-		// now. This is the normal case; the signal handler passes in a
-		// static buffer.
 		buffer = dynamic_buffer_ = new Buffer;
 	}
 	else {
@@ -565,49 +560,3 @@ int ProcMapsIterator::FormatLine(char* buffer, int bufsize,
 		inode, filename);
 	return (rc < 0 || rc >= bufsize) ? 0 : rc;
 }
-
-namespace tcmalloc {
-
-	int FillProcSelfMaps(char buf[], int size, bool* wrote_all) {
-		ProcMapsIterator::Buffer iterbuf;
-		ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
-
-		uint64_t start, end, offset;
-		int64_t inode;
-		char* flags, * filename;
-		int bytes_written = 0;
-		*wrote_all = true;
-		while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
-			const int line_length = it.FormatLine(buf + bytes_written,
-				size - bytes_written,
-				start, end, flags, offset,
-				inode, filename, 0);
-			if (line_length == 0)
-				*wrote_all = false;     // failed to write this line out
-			else
-				bytes_written += line_length;
-
-		}
-		return bytes_written;
-	}
-
-	// Dump the same data as FillProcSelfMaps reads to fd.
-	// It seems easier to repeat parts of FillProcSelfMaps here than to
-	// reuse it via a call.
-	void DumpProcSelfMaps(RawFD fd) {
-		ProcMapsIterator::Buffer iterbuf;
-		ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
-
-		uint64_t start, end, offset;
-		int64_t inode;
-		char* flags, * filename;
-		ProcMapsIterator::Buffer linebuf;
-		while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
-			int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_),
-				start, end, flags, offset, inode, filename,
-				0);
-			//RawWrite(fd, linebuf.buf_, written);
-		}
-	}
-
-}  // namespace tcmalloc
