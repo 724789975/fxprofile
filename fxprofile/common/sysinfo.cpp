@@ -59,7 +59,7 @@ static void ConstructFilename(const char* spec, pid_t pid,
 {
 	if (snprintf(buf, buf_size,
 		spec,
-		static_cast<int>(pid ? pid : getpid())) < buf_size)
+		static_cast<int>(pid ? pid : getpid())) >= buf_size)
 	{
 		assert(false);
 	}
