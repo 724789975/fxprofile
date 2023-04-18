@@ -127,8 +127,8 @@ static void DumpProcSelfMaps(FILE* fd)
 	ProcMapsIterator::Buffer iterbuf;
 	ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
 
-	uint64_t start, end, offset;
-	int64_t inode;
+	unsigned long long start, end, offset;
+	long long inode;
 	char* flags, * filename;
 	ProcMapsIterator::Buffer linebuf;
 	while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {

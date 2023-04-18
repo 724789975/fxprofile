@@ -1,42 +1,27 @@
 #ifndef _SYSINFO_H_
 #define _SYSINFO_H_
 
-#include <time.h>
 #ifdef _WIN32
-#include <windows.h>   // for DWORD
+#include <windows.h>
 #include <tlhelp32.h>  // for CreateToolhelp32Snapshot
 #else
 #include <sys/types.h>
 #include <unistd.h>    // for pid_t
 #endif
-#include <stddef.h>    // for size_t
-#include <limits.h>    // for PATH_MAX
-#include <stdint.h>
-
-#ifndef HAVE_PID_T
-typedef int pid_t;
-#endif
 
 #ifdef _WIN32
+typedef int pid_t;
 typedef unsigned int _dev_t;
 typedef _dev_t dev_t;
 #endif // _WIN32
 
-extern const char* GetenvBeforeMain(const char* name);
-
-extern bool GetUniquePathFromEnv(const char* env_name, char* path);
-
 extern int GetSystemCPUsCount();
 
-void SleepForMilliseconds(int milliseconds);
-
-bool HasPosixThreads();
-
-#ifndef SWIG  // SWIG doesn't like struct Buffer and variable arguments.
-
-class ProcMapsIterator {
+class ProcMapsIterator
+{
 public:
-	struct Buffer {
+	struct Buffer
+	{
 		static const size_t kBufSize = 256 + 1024;
 		char buf_[kBufSize];
 	};
@@ -50,20 +35,23 @@ public:
 
 	bool Valid() const;
 
-	const char* CurrentLine() const { return stext_; }
+	const char* CurrentLine() const
+	{
+		return stext_;
+	}
 
 	static int FormatLine(char* buffer, int bufsize,
-		uint64_t start, uint64_t end, const char* flags,
-		uint64_t offset, int64_t inode, const char* filename,
+		unsigned long long start, unsigned long long end, const char* flags,
+		unsigned long long offset, long long inode, const char* filename,
 		dev_t dev);
 
-	bool Next(uint64_t* start, uint64_t* end, char** flags,
-		uint64_t* offset, int64_t* inode, char** filename);
+	bool Next(unsigned long long* start, unsigned long long* end, char** flags,
+		unsigned long long* offset, long long* inode, char** filename);
 
-	bool NextExt(uint64_t* start, uint64_t* end, char** flags,
-		uint64_t* offset, int64_t* inode, char** filename,
-		uint64_t* file_mapping, uint64_t* file_pages,
-		uint64_t* anon_mapping, uint64_t* anon_pages,
+	bool NextExt(unsigned long long* start, unsigned long long* end, char** flags,
+		unsigned long long* offset, long long* inode, char** filename,
+		unsigned long long* file_mapping, unsigned long long* file_pages,
+		unsigned long long* anon_mapping, unsigned long long* anon_pages,
 		dev_t* dev);
 
 	~ProcMapsIterator();
@@ -96,16 +84,5 @@ private:
 	bool using_maps_backing_; // true if we are looking at maps_backing instead of maps.
 };
 
-#endif  /* #ifndef SWIG */
-
-// Helper routines
-
-#ifdef _WIN32
-typedef HANDLE RawFD;
-const RawFD kIllegalRawFD = INVALID_HANDLE_VALUE;
-#else
-typedef int RawFD;
-const RawFD kIllegalRawFD = -1;   // what open returns if it fails
-#endif  // defined(_WIN32)
 
 #endif   /* #ifndef _SYSINFO_H_ */
