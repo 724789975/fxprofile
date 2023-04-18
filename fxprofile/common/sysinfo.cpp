@@ -61,7 +61,7 @@ static void ConstructFilename(const char* spec, pid_t pid,
 		spec,
 		static_cast<int>(pid ? pid : getpid())) < buf_size)
 	{
-		//TODO error
+		assert(false);
 	}
 }
 #endif // !_WIN32
