@@ -1,57 +1,51 @@
-#include "../include/profiler.h"
 #include "profiledata.h"
+#include "../include/profiler.h"
 
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 #ifdef _WIN32
+#include <Windows.h>
+#include <processthreadsapi.h>
+#include <Tlhelp32.h>
+#include <DbgHelp.h>
+#pragma comment(lib, "dbghelp.lib")
+
 #else
 #include <ucontext.h>
 #include <unwind.h>
 #include <signal.h>
-#include <time.h>
 #include <sys/time.h>
 #endif // _WIN32
 
 static const int kMaxStackDepth = 254; // Max stack depth stored in profile
 
 #ifdef _WIN32
-typedef void (*ProfileHandlerCallback)();
 #else
-typedef void (*ProfileHandlerCallback)(int sig, siginfo_t* sig_info
-	, void* ucontext, void* callback_arg);
-
 void prof_handler(int sig, siginfo_t* info, void* signal_ucontext);
 #endif	//! _WIN32
 
-struct ProfilerState {
+struct ProfilerState
+{
 	int    enabled;             /* Is profiling currently enabled? */
 	time_t start_time;          /* If enabled, when was profiling started? */
 	char   profile_name[1024];  /* Name of profile file being written, or '\0' */
 	int    samples_gathered;    /* Number of samples gathered so far (or 0) */
 };
 
-struct ProfileHandlerToken {
-	// Sets the callback and associated arg.
-	ProfileHandlerToken(ProfileHandlerCallback cb, void* cb_arg)
-		: callback(cb),
-		callback_arg(cb_arg) {
-	}
-
-	// Callback function to be invoked on receiving a profile timer interrupt.
-	ProfileHandlerCallback callback;
-	// Argument for the callback function.
-	void* callback_arg;
-};
-
-class CpuProfiler {
+class CpuProfiler
+{
 public:
 	CpuProfiler();
-	~CpuProfiler() {};
+	~CpuProfiler();
 
 #ifdef _WIN32
+	static void prof_handler(void* lpParam, BOOLEAN TimerOrWaitFired);
 #else
 	friend void prof_handler(int sig, siginfo_t* info, void* signal_ucontext);
 #endif // _WIN32
 
+	friend class ProfileData;
 
 	bool Start(const char* fname, int frequency = 4000);
 
@@ -67,16 +61,15 @@ public:
 
 private:
 	ProfileData   collector_;
-
-	int           (*filter_)(void*);
-	void* filter_arg_;
-
-	ProfileHandlerToken* prof_handler_token_;
-
 	int frequency_;
+#ifdef _WIN32
+	HANDLE proc_;
+	HANDLE m_hTimerQueue;
+	HANDLE m_hTimerQueueTimer;
+#endif // _WIN32
+
 
 	void EnableHandler();
-
 	void DisableHandler();
 };
 
@@ -84,6 +77,73 @@ CpuProfiler CpuProfiler::instance_;
 
 
 #ifdef _WIN32
+void CpuProfiler::prof_handler(void* lpParam, BOOLEAN TimerOrWaitFired)
+{
+	unsigned long pid = GetCurrentProcessId();
+	unsigned long tid = GetCurrentThreadId();
+	HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, pid);
+	if (snap == INVALID_HANDLE_VALUE)
+	{
+		return;
+	}
+	THREADENTRY32 e = { sizeof(e) };
+	BOOL ok = Thread32First(snap, &e);
+	for (; ok; ok = Thread32Next(snap, &e))
+	{
+		if (e.th32OwnerProcessID != pid || e.th32ThreadID == tid)
+			continue;
+		DWORD thread_id = e.th32ThreadID;
+		//cout << "open thread " << e.th32ThreadID << endl;
+		HANDLE th = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, thread_id);
+		if (th == INVALID_HANDLE_VALUE)
+		{
+			//TODO error
+			continue;
+		}
+		DWORD ret = SuspendThread(th);
+		if (ret == (DWORD)-1)
+		{
+			CloseHandle(th);
+			//TODO error
+			continue;
+		}
+		CONTEXT ctx;
+		ZeroMemory(&ctx, sizeof(ctx));
+		ctx.ContextFlags = CONTEXT_ALL;
+		ret = GetThreadContext(th, &ctx);
+		if (!ret)
+		{
+			ResumeThread(th);
+			CloseHandle(th);
+			//TODO error
+			continue;
+		}
+		//
+		STACKFRAME sf = { 0 };
+		sf.AddrPC.Offset = ctx.Rip;
+		sf.AddrPC.Mode = AddrModeFlat;
+		sf.AddrFrame.Offset = ctx.Rbp;
+		sf.AddrFrame.Mode = AddrModeFlat;
+		sf.AddrStack.Offset = ctx.Rsp;
+		sf.AddrStack.Mode = AddrModeFlat;
+
+		void* stack[kMaxStackDepth] = {0};
+		int depth = 0;
+		while (StackWalk(IMAGE_FILE_MACHINE_AMD64, CpuProfiler::instance_.proc_, th, &sf, &ctx,
+			NULL, SymFunctionTableAccess, SymGetModuleBase, NULL))
+		{
+			stack[depth++] = (void*)sf.AddrPC.Offset;
+		}
+		if (depth)
+		{
+			CpuProfiler::instance_.collector_.Add(depth, stack);
+		}
+			
+		ResumeThread(th);
+		CloseHandle(th);
+	}
+	CloseHandle(snap);
+}
 #else
 struct CallUnrollInfo
 {
@@ -138,7 +198,8 @@ inline void* GetPC(const ucontext_t& signal_ucontext)
 	return (void*)eip;
 }
 #else
-inline void* GetPC(const ucontext_t& signal_ucontext) {
+inline void* GetPC(const ucontext_t& signal_ucontext)
+{
 #if defined(__s390__) && !defined(__s390x__)
 	// Mask out the AMODE31 bit from the PC recorded in the context.
 	return (void*)((unsigned long)signal_ucontext.uc_mcontext.gregs[REG_RIP] & 0x7fffffffUL);
@@ -156,8 +217,7 @@ struct libgcc_backtrace_data
 	int limit;
 };
 
-static _Unwind_Reason_Code libgcc_backtrace_helper(struct _Unwind_Context* ctx,
-	void* _data)
+static _Unwind_Reason_Code libgcc_backtrace_helper(struct _Unwind_Context* ctx, void* _data)
 {
 	libgcc_backtrace_data* data =
 		reinterpret_cast<libgcc_backtrace_data*>(_data);
@@ -178,8 +238,8 @@ static _Unwind_Reason_Code libgcc_backtrace_helper(struct _Unwind_Context* ctx,
 	return _URC_NO_REASON;
 }
 
-static int GetStackFramesWithContext_libgcc(void** result, int max_depth,
-	int skip_count, const void* uc)
+static int GetStackFramesWithContext_libgcc(void** result, int max_depth
+	, int skip_count, const void* uc)
 {
 	libgcc_backtrace_data data;
 	data.array = result;
@@ -221,14 +281,23 @@ void prof_handler(int sig, siginfo_t* info, void* signal_ucontext)
 	instance->collector_.Add(depth, used_stack);
 }
 
-#include <stdio.h>
-#include <stdlib.h>
 #endif // _WIN32
 
 
 CpuProfiler::CpuProfiler()
+	: frequency_(4000)
+	, m_hTimerQueueTimer(INVALID_HANDLE_VALUE)
 {
 #ifdef _WIN32
+	this->proc_ = GetCurrentProcess();
+	SymInitialize(this->proc_, NULL, TRUE);
+
+	this->m_hTimerQueue = CreateTimerQueue();
+	if (INVALID_HANDLE_VALUE == this->m_hTimerQueue)
+	{
+		perror("sigaction");
+		exit(1);
+	}
 #else
 	struct sigaction sa;
 	sa.sa_sigaction = prof_handler;
@@ -242,13 +311,22 @@ CpuProfiler::CpuProfiler()
 #endif // _WIN32
 }
 
+CpuProfiler::~CpuProfiler()
+{
+#ifdef _WIN32
+	SymCleanup(this->proc_);
+#endif // _WIN32
+};
+
 bool CpuProfiler::Start(const char* fname, int frequency /*= 4000*/)
 {
-	if (collector_.enabled()) {
+	if (collector_.enabled())
+	{
 		return false;
 	}
 
-	if (!collector_.Start(fname, frequency)) {
+	if (!collector_.Start(fname, frequency))
+	{
 		return false;
 	}
 
@@ -261,7 +339,8 @@ bool CpuProfiler::Start(const char* fname, int frequency /*= 4000*/)
 
 void CpuProfiler::Stop()
 {
-	if (!collector_.enabled()) {
+	if (!collector_.enabled())
+	{
 		return;
 	}
 
@@ -272,10 +351,19 @@ void CpuProfiler::Stop()
 
 void CpuProfiler::EnableHandler()
 {
+	static const int kMillion = 1000;
 #ifdef _WIN32
+	int delay = kMillion / this->frequency_;
+	if (!CreateTimerQueueTimer(&this->m_hTimerQueueTimer, this->m_hTimerQueue, prof_handler, 0
+		, delay, delay 
+		, WT_EXECUTEONLYONCE))
+		//, WT_EXECUTEINWAITTHREAD))
+	{
+		this->m_hTimerQueue = NULL;
+		this->m_hTimerQueueTimer = NULL;
+	}
 #else
 	struct itimerval timer;
-	static const int kMillion = 1000000;
 	int interval_usec = kMillion / this->frequency_;
 	timer.it_interval.tv_sec = interval_usec / kMillion;
 	timer.it_interval.tv_usec = interval_usec % kMillion;
@@ -288,6 +376,8 @@ void CpuProfiler::EnableHandler()
 void CpuProfiler::DisableHandler()
 {
 #ifdef _WIN32
+	DeleteTimerQueueTimer(this->m_hTimerQueue, this->m_hTimerQueueTimer, NULL);
+	m_hTimerQueueTimer = INVALID_HANDLE_VALUE;
 #else
 	struct itimerval timer;
 	timer.it_interval.tv_sec = 0;
@@ -299,7 +389,7 @@ void CpuProfiler::DisableHandler()
 
 int ProfilerStart(const char* fname)
 {
-	return CpuProfiler::instance_.Start(fname);
+	return CpuProfiler::instance_.Start(fname, 1);
 }
 
 void ProfilerStop(void)
