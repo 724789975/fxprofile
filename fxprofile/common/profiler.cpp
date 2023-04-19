@@ -16,8 +16,10 @@ static const int kMaxStackDepth = 254; // Max stack depth stored in profile
 #ifdef _WIN32
 typedef void (*ProfileHandlerCallback)();
 #else
-typedef void (*ProfileHandlerCallback)(int sig, siginfo_t* sig_info,
-	void* ucontext, void* callback_arg);
+typedef void (*ProfileHandlerCallback)(int sig, siginfo_t* sig_info
+	, void* ucontext, void* callback_arg);
+
+void prof_handler(int sig, siginfo_t* info, void* signal_ucontext);
 #endif	//! _WIN32
 
 struct ProfilerState {
@@ -45,11 +47,16 @@ public:
 	CpuProfiler();
 	~CpuProfiler() {};
 
+#ifdef _WIN32
+#else
+	friend void prof_handler(int sig, siginfo_t* info, void* signal_ucontext);
+#endif // _WIN32
+
+
 	bool Start(const char* fname, int frequency = 4000);
 
 	void Stop();
 
-	// Write the data to disk (and continue profiling).
 	void FlushTable() {};
 
 	bool Enabled() { return false; };
@@ -58,7 +65,7 @@ public:
 
 	static CpuProfiler instance_;
 
-	//  private:
+private:
 	ProfileData   collector_;
 
 	int           (*filter_)(void*);
@@ -68,10 +75,8 @@ public:
 
 	int frequency_;
 
-	// Sets up a callback to receive SIGPROF interrupt.
 	void EnableHandler();
 
-	// Disables receiving SIGPROF interrupt.
 	void DisableHandler();
 };
 

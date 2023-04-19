@@ -63,12 +63,14 @@ ProfileData::ProfileData()
 
 bool ProfileData::Start(const char* fname, int frequency)
 {
-	if (enabled()) {
+	if (enabled())
+	{
 		return false;
 	}
 
 	FILE* fd = fopen(fname, "w");
-	if (!fd) {
+	if (!fd)
+	{
 		return false;
 	}
 
@@ -114,7 +116,8 @@ ProfileData::~ProfileData()
 
 static void FDWrite(FILE* fd, const char* buf, size_t len)
 {
-	while (len > 0) {
+	while (len > 0)
+	{
 		ssize_t r;
 		NO_INTR(r = fwrite(buf, 1, len, fd));
 		buf += r;
@@ -131,10 +134,10 @@ static void DumpProcSelfMaps(FILE* fd)
 	long long inode;
 	char* flags, * filename;
 	ProcMapsIterator::Buffer linebuf;
-	while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
-		int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_),
-			start, end, flags, offset, inode, filename,
-			0);
+	while (it.Next(&start, &end, &flags, &offset, &inode, &filename))
+	{
+		int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_)
+			, start, end, flags, offset, inode, filename, 0);
 		FDWrite(fd, linebuf.buf_, written);
 	}
 }

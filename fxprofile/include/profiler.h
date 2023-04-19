@@ -5,9 +5,6 @@
 
 int ProfilerStart(const char* fname);
 
-//int ProfilerStartWithOptions(
-//    const char* fname, const struct ProfilerOptions* options);
-
 void ProfilerStop(void);
 
 void ProfilerFlush(void);
@@ -15,9 +12,6 @@ void ProfilerFlush(void);
 void ProfilerEnable(void);
 void ProfilerDisable(void);
 
-//int ProfilingIsEnabledForAllThreads(void);
-
-//void ProfilerRegisterThread(void);
 
 
 #endif	//!__PROFILER_H__
