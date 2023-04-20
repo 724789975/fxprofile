@@ -66,6 +66,7 @@ private:
 	HANDLE proc_;
 	HANDLE m_hTimerQueue;
 	HANDLE m_hTimerQueueTimer;
+	HANDLE m_hModule;
 #endif // _WIN32
 
 
@@ -132,7 +133,7 @@ void CpuProfiler::prof_handler(void* lpParam, BOOLEAN TimerOrWaitFired)
 		while (StackWalk(IMAGE_FILE_MACHINE_AMD64, CpuProfiler::instance_.proc_, th, &sf, &ctx,
 			NULL, SymFunctionTableAccess, SymGetModuleBase, NULL))
 		{
-			stack[depth++] = (void*)sf.AddrPC.Offset;
+			stack[depth++] = (void*)(sf.AddrPC.Offset - (DWORD64)(CpuProfiler::instance_.m_hModule));
 		}
 		if (depth)
 		{
@@ -298,6 +299,7 @@ CpuProfiler::CpuProfiler()
 		perror("sigaction");
 		exit(1);
 	}
+	this->m_hModule = GetModuleHandle(NULL);
 #else
 	struct sigaction sa;
 	sa.sa_sigaction = prof_handler;
