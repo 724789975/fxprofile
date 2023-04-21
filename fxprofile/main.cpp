@@ -3,6 +3,9 @@
 #include <chrono>
 #include <thread>
 
+#ifdef _WIN32
+#pragma comment(lib, "dbghelp.lib")
+#endif // _WIN32
 
 int main()
 {

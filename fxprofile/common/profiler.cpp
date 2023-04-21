@@ -9,7 +9,6 @@
 #include <processthreadsapi.h>
 #include <Tlhelp32.h>
 #include <DbgHelp.h>
-#pragma comment(lib, "dbghelp.lib")
 
 #else
 #include <ucontext.h>
